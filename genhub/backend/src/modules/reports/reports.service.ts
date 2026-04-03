@@ -15,14 +15,17 @@ export class ReportsService {
       await Promise.all([
         this.prisma.order.count({
           where: {
-            storeId, deletedAt: null,
+            storeId,
+            deletedAt: null,
             status: { in: ['completed', 'confirmed', 'processing'] },
             createdAt: { gte: today, lt: tomorrow },
           },
         }),
         this.prisma.order.aggregate({
           where: {
-            storeId, status: 'completed', deletedAt: null,
+            storeId,
+            status: 'completed',
+            deletedAt: null,
             createdAt: { gte: today, lt: tomorrow },
           },
           _sum: { totalAmount: true },
@@ -42,7 +45,9 @@ export class ReportsService {
     const revenueChart = await this.prisma.order.groupBy({
       by: ['createdAt'],
       where: {
-        storeId, status: 'completed', deletedAt: null,
+        storeId,
+        status: 'completed',
+        deletedAt: null,
         createdAt: { gte: sevenDaysAgo },
       },
       _sum: { totalAmount: true },
@@ -52,8 +57,12 @@ export class ReportsService {
     const topProducts = await this.prisma.orderItem.groupBy({
       by: ['productId'],
       where: {
-        order: { storeId, status: 'completed', deletedAt: null,
-          createdAt: { gte: sevenDaysAgo } },
+        order: {
+          storeId,
+          status: 'completed',
+          deletedAt: null,
+          createdAt: { gte: sevenDaysAgo },
+        },
       },
       _sum: { quantity: true, lineTotal: true },
       orderBy: { _sum: { quantity: 'desc' } },
@@ -72,19 +81,20 @@ export class ReportsService {
 
   async revenue(storeId: string, from?: string, to?: string) {
     const where = {
-      storeId, status: 'completed' as const, deletedAt: null as null,
-      ...(from && to && {
-        createdAt: { gte: new Date(from), lte: new Date(to) },
-      }),
+      storeId,
+      status: 'completed' as const,
+      deletedAt: null,
+      ...(from &&
+        to && {
+          createdAt: { gte: new Date(from), lte: new Date(to) },
+        }),
     };
     const orders = await this.prisma.order.findMany({
       where,
       select: { totalAmount: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
-    const total = orders.reduce(
-      (sum, o) => sum + Number(o.totalAmount), 0,
-    );
+    const total = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);
     return { total, orders };
   }
 

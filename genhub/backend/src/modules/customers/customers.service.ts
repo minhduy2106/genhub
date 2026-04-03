@@ -9,7 +9,8 @@ export class CustomersService {
 
   async findAll(storeId: string, query: PaginationDto & { search?: string }) {
     const where: Prisma.CustomerWhereInput = {
-      storeId, deletedAt: null,
+      storeId,
+      deletedAt: null,
       ...(query.search && {
         OR: [
           { fullName: { contains: query.search, mode: 'insensitive' } },
@@ -30,7 +31,16 @@ export class CustomersService {
     return paginate(data, total, query.page, query.limit);
   }
 
-  async create(storeId: string, data: { fullName: string; phone?: string; email?: string; address?: string; code?: string }) {
+  async create(
+    storeId: string,
+    data: {
+      fullName: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      code?: string;
+    },
+  ) {
     return this.prisma.customer.create({
       data: { ...data, storeId },
     });
@@ -52,7 +62,8 @@ export class CustomersService {
   async remove(id: string, storeId: string) {
     await this.findOne(id, storeId);
     return this.prisma.customer.update({
-      where: { id }, data: { deletedAt: new Date() },
+      where: { id },
+      data: { deletedAt: new Date() },
     });
   }
 
@@ -68,7 +79,8 @@ export class CustomersService {
   async search(storeId: string, q: string) {
     return this.prisma.customer.findMany({
       where: {
-        storeId, deletedAt: null,
+        storeId,
+        deletedAt: null,
         OR: [
           { fullName: { contains: q, mode: 'insensitive' } },
           { phone: { contains: q } },

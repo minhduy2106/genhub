@@ -1,7 +1,18 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+} from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+} from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('categories')
@@ -26,7 +37,11 @@ export class CategoriesController {
 
   @Patch(':id')
   @RequirePermissions('products:update')
-  update(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() dto: Partial<CreateCategoryDto>) {
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: Partial<CreateCategoryDto>,
+  ) {
     return this.service.update(id, user.storeId, dto);
   }
 

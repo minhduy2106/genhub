@@ -1,6 +1,13 @@
 import {
-  IsNotEmpty, IsOptional, IsString, IsUUID, IsNumber,
-  IsArray, ValidateNested, IsInt, Min,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

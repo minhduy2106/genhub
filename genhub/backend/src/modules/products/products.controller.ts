@@ -1,8 +1,20 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
-import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+} from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('products')
@@ -27,7 +39,10 @@ export class ProductsController {
   }
 
   @Get('barcode/:barcode')
-  findByBarcode(@CurrentUser() user: JwtPayload, @Param('barcode') barcode: string) {
+  findByBarcode(
+    @CurrentUser() user: JwtPayload,
+    @Param('barcode') barcode: string,
+  ) {
     return this.service.findByBarcode(user.storeId, barcode);
   }
 
@@ -39,7 +54,11 @@ export class ProductsController {
 
   @Patch(':id')
   @RequirePermissions('products:update')
-  update(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() dto: Partial<CreateProductDto>) {
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: Partial<CreateProductDto>,
+  ) {
     return this.service.update(id, user.storeId, dto);
   }
 

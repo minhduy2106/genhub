@@ -1,6 +1,14 @@
 import {
-  IsNotEmpty, IsOptional, IsString, IsUUID, IsBoolean,
-  IsNumber, IsArray, ValidateNested, IsInt, Min,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  IsBoolean,
+  IsNumber,
+  IsArray,
+  ValidateNested,
+  IsInt,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -15,7 +23,8 @@ export class CreateVariantDto {
 }
 
 export class CreateProductDto {
-  @IsString() @IsNotEmpty({ message: 'Tên sản phẩm không được để trống' })
+  @IsString()
+  @IsNotEmpty({ message: 'Tên sản phẩm không được để trống' })
   name: string;
 
   @IsOptional() @IsUUID() categoryId?: string;
