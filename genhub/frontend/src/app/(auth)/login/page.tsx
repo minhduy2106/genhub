@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Store, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { toast } from 'sonner';
@@ -37,6 +38,7 @@ export default function LoginPage() {
       const data = json.data ?? json;
       setAuth(data.user, data.accessToken);
       localStorage.setItem('accessToken', data.accessToken);
+      document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${15 * 60}; SameSite=Lax`;
       if (data.refreshToken) {
         localStorage.setItem('refreshToken', data.refreshToken);
       }
@@ -79,7 +81,12 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Mật khẩu</label>
+              <Link href="/forgot-password" className="text-xs text-[#FF6B35] hover:underline">
+                Quên mật khẩu?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}
@@ -99,6 +106,13 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-sm text-gray-500 mt-6">
+          Chưa có tài khoản?{' '}
+          <Link href="/register" className="text-[#FF6B35] hover:underline font-medium">
+            Đăng ký ngay
+          </Link>
+        </p>
+
+        <p className="text-center text-xs text-gray-400 mt-3">
           Demo: lan@genhub.vn / 123456
         </p>
       </div>

@@ -1,13 +1,41 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { MobileNav } from '@/components/layout/MobileNav';
+import { useAuthStore } from '@/lib/stores/auth.store';
 
 export default function StoreLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const { user, accessToken, isAuthenticated, isRehydrating, rehydrate } = useAuthStore();
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) {
+      router.replace('/login');
+      return;
+    }
+    if (isAuthenticated && !user && !isRehydrating) {
+      rehydrate().finally(() => setReady(true));
+    } else {
+      setReady(true);
+    }
+  }, [accessToken, isAuthenticated, user, isRehydrating, rehydrate, router]);
+
+  if (!ready || isRehydrating) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
