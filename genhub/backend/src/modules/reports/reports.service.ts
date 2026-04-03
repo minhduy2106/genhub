@@ -54,7 +54,7 @@ export class ReportsService {
     });
 
     // Top 5 sản phẩm bán chạy
-    const topProducts = await this.prisma.orderItem.groupBy({
+    const topItems = await this.prisma.orderItem.groupBy({
       by: ['productId'],
       where: {
         order: {
@@ -68,6 +68,19 @@ export class ReportsService {
       orderBy: { _sum: { quantity: 'desc' } },
       take: 5,
     });
+
+    // Join product names
+    const productIds = topItems.map((i) => i.productId);
+    const products = productIds.length
+      ? await this.prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true, sku: true },
+        })
+      : [];
+    const topProducts = topItems.map((item) => ({
+      ...item,
+      product: products.find((p) => p.id === item.productId) ?? null,
+    }));
 
     return {
       revenue: { total: todayRevenue._sum.totalAmount ?? 0 },
