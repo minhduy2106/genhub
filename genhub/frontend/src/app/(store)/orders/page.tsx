@@ -18,15 +18,15 @@ interface OrderItem {
   id: string;
   productSnapshot: { name: string; sku?: string };
   quantity: number;
-  unitPrice: number;
-  discountAmount: number;
-  lineTotal: number;
+  unitPrice: number | string;
+  discountAmount: number | string;
+  lineTotal: number | string;
 }
 
 interface Payment {
   id: string;
   method: string;
-  amount: number;
+  amount: number | string;
   status: string;
 }
 
@@ -41,10 +41,10 @@ interface Order {
   code: string;
   status: string;
   channel: string;
-  subtotal: number;
-  discountAmount: number;
-  totalAmount: number;
-  paidAmount: number;
+  subtotal: number | string;
+  discountAmount: number | string;
+  totalAmount: number | string;
+  paidAmount: number | string;
   createdAt: string;
   customer?: Customer;
   items: OrderItem[];
@@ -266,7 +266,7 @@ export default function OrdersPage() {
                         )}
                         <div className="text-xs text-gray-500">
                           {formatCurrency(item.unitPrice)} × {item.quantity}
-                          {item.discountAmount > 0 && (
+                          {Number(item.discountAmount) > 0 && (
                             <span className="text-red-500"> - {formatCurrency(item.discountAmount)}</span>
                           )}
                         </div>
@@ -283,7 +283,7 @@ export default function OrdersPage() {
                   <span>Tạm tính</span>
                   <span>{formatCurrency(selectedOrder.subtotal)}</span>
                 </div>
-                {selectedOrder.discountAmount > 0 && (
+                {Number(selectedOrder.discountAmount) > 0 && (
                   <div className="flex justify-between text-red-500">
                     <span>Giảm giá</span>
                     <span>-{formatCurrency(selectedOrder.discountAmount)}</span>

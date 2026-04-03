@@ -39,13 +39,21 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim()) {
-      toast.error('Vui lòng nhập họ tên và số điện thoại');
+    setError(null);
+
+    if (!fullName.trim()) {
+      setError('Vui lòng nhập họ tên khách hàng');
       return;
     }
+    if (!phone.trim()) {
+      setError('Vui lòng nhập số điện thoại');
+      return;
+    }
+
     setLoading(true);
     try {
       await apiFetch('/customers', {
@@ -57,10 +65,20 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
           address: address.trim() || undefined,
         }),
       });
+
+      // Clear form fields
+      setFullName('');
+      setPhone('');
+      setEmail('');
+      setAddress('');
+
       toast.success('Đã thêm khách hàng thành công');
+      // Close modal and refresh list
       onCreated();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Không thể thêm khách hàng');
+      const msg = err instanceof Error ? err.message : 'Không thể thêm khách hàng';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -71,11 +89,20 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-bold text-lg">Thêm khách hàng mới</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-100 rounded-lg"
+            aria-label="Đóng"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4" noValidate>
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Họ tên <span className="text-red-500">*</span>
@@ -83,10 +110,10 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
             <input
               type="text"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => { setFullName(e.target.value); setError(null); }}
               placeholder="Nhập họ tên khách hàng"
               className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-              required
+              autoFocus
             />
           </div>
           <div>
@@ -96,10 +123,9 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
             <input
               type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => { setPhone(e.target.value); setError(null); }}
               placeholder="Nhập số điện thoại"
               className="w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-              required
             />
           </div>
           <div>
@@ -126,7 +152,8 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 border rounded-lg text-sm font-medium hover:bg-gray-50"
+              disabled={loading}
+              className="flex-1 py-2.5 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
             >
               Hủy
             </button>
@@ -140,7 +167,7 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
               ) : (
                 <UserPlus className="h-4 w-4" />
               )}
-              Thêm khách hàng
+              {loading ? 'Đang thêm...' : 'Thêm khách hàng'}
             </button>
           </div>
         </form>
@@ -172,6 +199,7 @@ export default function CustomersPage() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Không thể tải danh sách khách hàng');
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -182,18 +210,28 @@ export default function CustomersPage() {
     fetchCustomers();
   }, [fetchCustomers]);
 
-  /* Debounced search */
+  /* Debounced search — skip on initial empty value to avoid double-fetch */
   useEffect(() => {
+    if (search === '') return;
     const timer = setTimeout(() => {
       fetchCustomers(search.trim() || undefined);
     }, 400);
     return () => clearTimeout(timer);
   }, [search, fetchCustomers]);
 
-  const handleCreated = () => {
-    setShowAddModal(false);
-    fetchCustomers(search.trim() || undefined);
+  /* Reset to full list when search is cleared after having typed something */
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (value === '') {
+      fetchCustomers();
+    }
   };
+
+  const handleCreated = useCallback(() => {
+    setShowAddModal(false);
+    // Refresh customer list (respecting current search)
+    fetchCustomers(search.trim() || undefined);
+  }, [fetchCustomers, search]);
 
   return (
     <div className="space-y-4">
@@ -214,9 +252,17 @@ export default function CustomersPage() {
           type="text"
           placeholder="Tìm theo tên, SĐT..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
         />
+        {search && (
+          <button
+            onClick={() => handleSearchChange('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -226,7 +272,29 @@ export default function CustomersPage() {
           </div>
         ) : customers.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            {search ? `Không tìm thấy khách hàng với từ khóa "${search}"` : 'Chưa có khách hàng nào'}
+            {search ? (
+              <div className="space-y-3">
+                <p>Không tìm thấy khách hàng với từ khóa &ldquo;{search}&rdquo;</p>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 text-[#FF6B35] hover:underline text-sm font-medium"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Thêm khách hàng mới
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p>Chưa có khách hàng nào</p>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 text-[#FF6B35] hover:underline text-sm font-medium"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Thêm khách hàng đầu tiên
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <table className="w-full text-sm">

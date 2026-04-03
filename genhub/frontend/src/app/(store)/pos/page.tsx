@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, User, Loader2, UserPlus } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, User, Loader2, UserPlus, Phone } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cart.store';
 import { formatCurrency } from '@/lib/utils/format';
 import { apiFetch } from '@/lib/api';
@@ -50,24 +50,31 @@ function getImage(product: Product): string | null {
   return product.images?.[0]?.url ?? null;
 }
 
-/* ---------- Quick Create Customer Modal ---------- */
-interface CreateCustomerModalProps {
+/* ---------- Quick Create Customer Inline Form ---------- */
+interface QuickCreateCustomerProps {
   initialName?: string;
   onClose: () => void;
   onCreated: (customer: Customer) => void;
 }
 
-function CreateCustomerModal({ initialName = '', onClose, onCreated }: CreateCustomerModalProps) {
+function QuickCreateCustomer({ initialName = '', onClose, onCreated }: QuickCreateCustomerProps) {
   const [fullName, setFullName] = useState(initialName);
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim()) {
-      toast.error('Vui lòng nhập họ tên và số điện thoại');
+    if (!fullName.trim()) {
+      toast.error('Vui lòng nhập họ tên');
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error('Vui lòng nhập số điện thoại');
       return;
     }
     setLoading(true);
@@ -77,8 +84,6 @@ function CreateCustomerModal({ initialName = '', onClose, onCreated }: CreateCus
         body: JSON.stringify({
           fullName: fullName.trim(),
           phone: phone.trim(),
-          email: email.trim() || undefined,
-          address: address.trim() || undefined,
         }),
       });
       toast.success(`Đã thêm khách hàng: ${customer.fullName}`);
@@ -91,80 +96,58 @@ function CreateCustomerModal({ initialName = '', onClose, onCreated }: CreateCus
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-bold text-lg">Thêm khách hàng mới</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
-            <X className="h-5 w-5" />
+    <div className="border-t border-orange-100 bg-orange-50 p-3 space-y-2">
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+          Thêm khách hàng mới
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600"
+          aria-label="Đóng"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <input
+          ref={nameRef}
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Họ tên khách hàng *"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none bg-white"
+        />
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Số điện thoại *"
+          className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none bg-white"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-1.5 border rounded-lg text-xs text-gray-600 hover:bg-white"
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex-1 py-1.5 bg-[#FF6B35] text-white rounded-lg text-xs font-medium hover:bg-[#E55A2B] disabled:opacity-50 flex items-center justify-center gap-1"
+          >
+            {loading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <UserPlus className="h-3 w-3" />
+            )}
+            {loading ? 'Đang thêm...' : 'Tạo & chọn'}
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Họ tên <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Nhập họ tên khách hàng"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Số điện thoại <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Nhập số điện thoại"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Nhập email (tùy chọn)"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Nhập địa chỉ (tùy chọn)"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              Thêm khách hàng
-            </button>
-          </div>
-        </form>
-      </div>
+      </form>
     </div>
   );
 }
@@ -183,10 +166,13 @@ export default function PosPage() {
   // Customer search
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [customerSearching, setCustomerSearching] = useState(false);
   const [customerSearched, setCustomerSearched] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
   const customerRef = useRef<HTMLDivElement>(null);
+  const customerInputRef = useRef<HTMLInputElement>(null);
+  const dropdownCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Payment & Receipt
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -243,14 +229,17 @@ export default function PosPage() {
     }
   }, [search]);
 
-  /* ---------- Customer search ---------- */
+  /* ---------- Debounced customer search ---------- */
   useEffect(() => {
     if (!customerSearch.trim()) {
       setCustomerResults([]);
       setCustomerSearched(false);
-      setShowCustomerDropdown(false);
+      setCustomerSearching(false);
+      // Keep dropdown open on focus so user can start typing
       return;
     }
+
+    setCustomerSearching(true);
     setCustomerSearched(false);
     const timer = setTimeout(async () => {
       try {
@@ -259,22 +248,22 @@ export default function PosPage() {
         );
         const list = Array.isArray(results) ? results : [];
         setCustomerResults(list);
-        setCustomerSearched(true);
-        setShowCustomerDropdown(true);
       } catch {
         setCustomerResults([]);
+      } finally {
+        setCustomerSearching(false);
         setCustomerSearched(true);
-        setShowCustomerDropdown(true);
       }
-    }, 400);
+    }, 350);
     return () => clearTimeout(timer);
   }, [customerSearch]);
 
-  // Close customer dropdown on click outside
+  /* ---------- Close customer dropdown on outside click ---------- */
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (customerRef.current && !customerRef.current.contains(e.target as Node)) {
         setShowCustomerDropdown(false);
+        setShowQuickCreate(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
@@ -299,22 +288,46 @@ export default function PosPage() {
     [cart],
   );
 
+  /* ---------- Customer input handlers ---------- */
+  const handleCustomerFocus = () => {
+    if (dropdownCloseTimer.current) clearTimeout(dropdownCloseTimer.current);
+    setShowCustomerDropdown(true);
+  };
+
+  const handleCustomerBlur = () => {
+    // Delay close so clicks inside dropdown register first
+    dropdownCloseTimer.current = setTimeout(() => {
+      setShowCustomerDropdown(false);
+      setShowQuickCreate(false);
+      // If user typed something but didn't select, store it as customerName
+      if (customerSearch.trim() && !cart.customerId) {
+        cart.setCustomer(null, customerSearch.trim(), null);
+        setCustomerSearch('');
+      }
+    }, 200);
+  };
+
   /* ---------- Select customer ---------- */
   const selectCustomer = (customer: Customer) => {
     cart.setCustomer(customer.id, customer.fullName, customer.phone ?? null);
     setCustomerSearch('');
     setShowCustomerDropdown(false);
+    setShowQuickCreate(false);
     setCustomerSearched(false);
+    setCustomerResults([]);
   };
 
   const clearCustomer = () => {
     cart.setCustomer(null, null, null);
+    setCustomerSearch('');
+    // Refocus input for convenience
+    setTimeout(() => customerInputRef.current?.focus(), 50);
   };
 
   /* ---------- Handle new customer created ---------- */
   const handleCustomerCreated = (customer: Customer) => {
-    setShowCreateCustomer(false);
-    setCustomerSearch('');
+    setShowQuickCreate(false);
+    setShowCustomerDropdown(false);
     selectCustomer(customer);
   };
 
@@ -485,66 +498,152 @@ export default function PosPage() {
           </div>
 
           {/* Customer selection */}
-          <div className="px-4 pt-3" ref={customerRef}>
-            {cart.customerName ? (
-              <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg text-sm">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-blue-600 shrink-0" />
-                  <div>
-                    <p className="font-medium text-blue-700">{cart.customerName}</p>
+          <div className="px-4 pt-3 pb-1" ref={customerRef}>
+            {/* Selected customer badge */}
+            {cart.customerId || (cart.customerName && !showCustomerDropdown) ? (
+              <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="bg-blue-100 rounded-full p-1 shrink-0">
+                    <User className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-blue-800 truncate">{cart.customerName}</p>
                     {cart.customerPhone && (
-                      <p className="text-xs text-blue-500">{cart.customerPhone}</p>
+                      <div className="flex items-center gap-1">
+                        <Phone className="h-3 w-3 text-blue-400" />
+                        <p className="text-xs text-blue-500">{cart.customerPhone}</p>
+                      </div>
+                    )}
+                    {cart.customerId && (
+                      <p className="text-xs text-blue-400">Khách hàng đã lưu</p>
                     )}
                   </div>
                 </div>
-                <button onClick={clearCustomer} className="text-blue-400 hover:text-blue-600">
-                  <X className="h-4 w-4" />
+                <button
+                  onClick={clearCustomer}
+                  title="Bỏ chọn khách hàng"
+                  className="ml-2 shrink-0 flex items-center gap-1 text-xs text-blue-400 hover:text-red-500 border border-blue-200 hover:border-red-300 rounded px-1.5 py-0.5 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                  Bỏ chọn
                 </button>
               </div>
             ) : (
+              /* Customer search input & dropdown */
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Tìm khách hàng..."
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                  onFocus={() =>
-                    (customerResults.length > 0 || customerSearched) &&
-                    setShowCustomerDropdown(true)
-                  }
-                  className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
-                />
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <input
+                    ref={customerInputRef}
+                    type="text"
+                    placeholder="Tìm hoặc nhập tên khách hàng..."
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      setShowQuickCreate(false);
+                    }}
+                    onFocus={handleCustomerFocus}
+                    onBlur={handleCustomerBlur}
+                    className="w-full pl-9 pr-8 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+                  />
+                  {customerSearch && (
+                    <button
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCustomerSearch('');
+                        setCustomerResults([]);
+                        setCustomerSearched(false);
+                        setShowQuickCreate(false);
+                        customerInputRef.current?.focus();
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown */}
                 {showCustomerDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-56 overflow-y-auto">
-                    {customerResults.length > 0 ? (
-                      customerResults.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => selectCustomer(c)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
-                        >
-                          <span className="font-medium">{c.fullName}</span>
-                          {c.phone && <span className="text-gray-400 text-xs">{c.phone}</span>}
-                        </button>
-                      ))
-                    ) : customerSearched ? (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-20 overflow-hidden">
+                    {/* Searching indicator */}
+                    {customerSearching && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-gray-400">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Đang tìm kiếm...
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    {!customerSearching && customerResults.length > 0 && (
+                      <div className="max-h-44 overflow-y-auto">
+                        {customerResults.map((c) => (
+                          <button
+                            key={c.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selectCustomer(c)}
+                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-orange-50 flex items-center gap-3 border-b last:border-b-0"
+                          >
+                            <div className="bg-gray-100 rounded-full p-1 shrink-0">
+                              <User className="h-3.5 w-3.5 text-gray-500" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-800 truncate">{c.fullName}</p>
+                              {c.phone && <p className="text-xs text-gray-400">{c.phone}</p>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* No results — show add new option */}
+                    {!customerSearching && customerSearched && customerResults.length === 0 && customerSearch.trim() && (
                       <div className="p-3">
-                        <p className="text-sm text-gray-500 mb-2">
+                        <p className="text-xs text-gray-400 mb-2">
                           Không tìm thấy &ldquo;{customerSearch}&rdquo;
                         </p>
+                        {!showQuickCreate ? (
+                          <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => setShowQuickCreate(true)}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B] transition-colors"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                            Thêm khách hàng mới
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Empty state — user focused but hasn't typed */}
+                    {!customerSearching && !customerSearch.trim() && (
+                      <div className="px-3 py-2.5 text-xs text-gray-400">
+                        Nhập tên hoặc số điện thoại để tìm...
+                      </div>
+                    )}
+
+                    {/* Quick create form embedded in dropdown */}
+                    {showQuickCreate && (
+                      <QuickCreateCustomer
+                        initialName={customerSearch}
+                        onClose={() => setShowQuickCreate(false)}
+                        onCreated={handleCustomerCreated}
+                      />
+                    )}
+
+                    {/* "Thêm mới" footer — always visible when dropdown is open and results exist */}
+                    {!customerSearching && !showQuickCreate && customerResults.length > 0 && (
+                      <div className="border-t px-3 py-2">
                         <button
-                          onClick={() => {
-                            setShowCustomerDropdown(false);
-                            setShowCreateCustomer(true);
-                          }}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#FF6B35] text-white rounded-lg text-sm hover:bg-[#E55A2B]"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setShowQuickCreate(true)}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-dashed border-gray-300 text-gray-500 rounded-lg text-xs hover:border-[#FF6B35] hover:text-[#FF6B35] transition-colors"
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <UserPlus className="h-3.5 w-3.5" />
                           Thêm khách hàng mới
                         </button>
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 )}
               </div>
@@ -635,15 +734,6 @@ export default function PosPage() {
           data={receiptData}
           onNewOrder={handleNewOrder}
           onClose={() => setReceiptData(null)}
-        />
-      )}
-
-      {/* Quick Create Customer Modal */}
-      {showCreateCustomer && (
-        <CreateCustomerModal
-          initialName={customerSearch}
-          onClose={() => setShowCreateCustomer(false)}
-          onCreated={handleCustomerCreated}
         />
       )}
     </>

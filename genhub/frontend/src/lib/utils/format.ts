@@ -1,5 +1,5 @@
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('vi-VN').format(amount) + 'đ';
+export function formatCurrency(amount: number | string): string {
+  return new Intl.NumberFormat('vi-VN').format(Number(amount)) + 'đ';
 }
 
 export function formatDate(date: string | Date): string {
