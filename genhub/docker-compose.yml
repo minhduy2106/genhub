@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: genhub
       POSTGRES_USER: genhub
-      POSTGRES_PASSWORD: genhub_secret
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-genhub_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -36,7 +36,7 @@ services:
       PORT: "4000"
       DATABASE_URL: postgresql://genhub:genhub_secret@postgres:5432/genhub
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: genhub-docker-secret-change-in-production
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       FRONTEND_URL: http://localhost:3000
     depends_on:
       postgres:
