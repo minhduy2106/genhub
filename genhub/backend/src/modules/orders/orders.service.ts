@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
-import { PaginationDto, paginate } from '../../common/dto/pagination.dto';
+import { paginate } from '../../common/dto/pagination.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
 import {
   generateOrderCode,
   generateCustomerCode,
@@ -16,7 +17,7 @@ import { Prisma } from '@prisma/client';
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(storeId: string, query: PaginationDto & { status?: string }) {
+  async findAll(storeId: string, query: OrderQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const where: Prisma.OrderWhereInput = {

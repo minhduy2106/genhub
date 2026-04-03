@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { CustomersService } from './customers.service';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { CustomerQueryDto } from './dto/customer-query.dto';
 import {
   CurrentUser,
   JwtPayload,
@@ -23,10 +23,7 @@ export class CustomersController {
 
   @Get()
   @RequirePermissions('customers:view')
-  findAll(
-    @CurrentUser() user: JwtPayload,
-    @Query() query: PaginationDto & { search?: string },
-  ) {
+  findAll(@CurrentUser() user: JwtPayload, @Query() query: CustomerQueryDto) {
     return this.service.findAll(user.storeId, query);
   }
 

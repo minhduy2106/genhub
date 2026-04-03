@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
-import { PaginationDto } from '../../common/dto/pagination.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
 import {
   CurrentUser,
   JwtPayload,
@@ -22,10 +22,7 @@ export class OrdersController {
 
   @Get()
   @RequirePermissions('orders:view')
-  findAll(
-    @CurrentUser() user: JwtPayload,
-    @Query() query: PaginationDto & { status?: string },
-  ) {
+  findAll(@CurrentUser() user: JwtPayload, @Query() query: OrderQueryDto) {
     return this.service.findAll(user.storeId, query);
   }
 

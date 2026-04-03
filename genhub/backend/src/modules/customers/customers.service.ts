@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { PaginationDto, paginate } from '../../common/dto/pagination.dto';
+import { paginate } from '../../common/dto/pagination.dto';
+import { CustomerQueryDto } from './dto/customer-query.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(storeId: string, query: PaginationDto & { search?: string }) {
+  async findAll(storeId: string, query: CustomerQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const where: Prisma.CustomerWhereInput = {
