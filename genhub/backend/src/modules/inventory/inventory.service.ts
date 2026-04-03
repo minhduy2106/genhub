@@ -7,16 +7,18 @@ export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(storeId: string, query: PaginationDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
     const [data, total] = await Promise.all([
       this.prisma.inventory.findMany({
         where: { storeId },
         include: { product: true, variant: true },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
       this.prisma.inventory.count({ where: { storeId } }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    return paginate(data, total, page, limit);
   }
 
   async lowStock(storeId: string) {
@@ -129,6 +131,8 @@ export class InventoryService {
   }
 
   async transactions(storeId: string, query: PaginationDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
     const [data, total] = await Promise.all([
       this.prisma.inventoryTransaction.findMany({
         where: { storeId },
@@ -137,12 +141,12 @@ export class InventoryService {
           variant: true,
           performer: { select: { fullName: true } },
         },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.inventoryTransaction.count({ where: { storeId } }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    return paginate(data, total, page, limit);
   }
 }

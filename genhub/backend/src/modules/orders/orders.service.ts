@@ -17,6 +17,8 @@ export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(storeId: string, query: PaginationDto & { status?: string }) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
     const where: Prisma.OrderWhereInput = {
       storeId,
       deletedAt: null,
@@ -26,13 +28,13 @@ export class OrdersService {
       this.prisma.order.findMany({
         where,
         include: { customer: true, items: true, payments: true },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.order.count({ where }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    return paginate(data, total, page, limit);
   }
 
   async findOne(id: string, storeId: string) {

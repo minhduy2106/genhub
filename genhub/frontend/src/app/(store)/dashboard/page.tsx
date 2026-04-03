@@ -66,43 +66,45 @@ export default function DashboardPage() {
     );
   }
 
-  if (!dashboard) {
-    return (
-      <div className="text-center py-32 text-gray-400">
-        Không thể tải dữ liệu. Vui lòng thử lại.
-      </div>
-    );
-  }
+  // If dashboard failed to load, show empty state with 0 values
+  const dash: DashboardData = dashboard ?? {
+    revenue: { total: 0 },
+    orders: { total: 0 },
+    newCustomers: { total: 0 },
+    lowStockCount: 0,
+    revenueChart: [],
+    topProducts: [],
+  };
 
   const kpis = [
     {
       label: 'Doanh thu hôm nay',
-      value: formatCurrency(Number(dashboard.revenue?.total ?? 0)),
+      value: formatCurrency(Number(dash.revenue?.total ?? 0)),
       icon: DollarSign,
       color: 'text-green-600 bg-green-50',
     },
     {
       label: 'Đơn hàng',
-      value: dashboard.orders?.total ?? 0,
+      value: dash.orders?.total ?? 0,
       icon: ShoppingCart,
       color: 'text-blue-600 bg-blue-50',
     },
     {
       label: 'Khách hàng mới',
-      value: dashboard.newCustomers?.total ?? 0,
+      value: dash.newCustomers?.total ?? 0,
       icon: Users,
       color: 'text-purple-600 bg-purple-50',
     },
     {
       label: 'Sắp hết hàng',
-      value: dashboard.lowStockCount ?? 0,
+      value: dash.lowStockCount ?? 0,
       icon: AlertTriangle,
       color: 'text-red-600 bg-red-50',
     },
   ];
 
   // Group revenue chart by date and sum
-  const chartByDate = (dashboard.revenueChart ?? []).reduce<Record<string, number>>((acc, item) => {
+  const chartByDate = (dash.revenueChart ?? []).reduce<Record<string, number>>((acc, item) => {
     const date = formatDate(item.createdAt);
     acc[date] = (acc[date] ?? 0) + Number(item._sum?.totalAmount ?? 0);
     return acc;
@@ -161,11 +163,11 @@ export default function DashboardPage() {
         {/* Top Products */}
         <div className="bg-white rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold mb-4">Top sản phẩm bán chạy</h3>
-          {(dashboard.topProducts ?? []).length === 0 ? (
+          {(dash.topProducts ?? []).length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm">Chưa có dữ liệu sản phẩm</div>
           ) : (
             <div className="space-y-3">
-              {dashboard.topProducts.map((p, i) => (
+              {dash.topProducts.map((p, i) => (
                 <div key={p.productId} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-[#FF6B35] w-6">#{i + 1}</span>

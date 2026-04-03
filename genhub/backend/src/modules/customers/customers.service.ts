@@ -8,6 +8,8 @@ export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(storeId: string, query: PaginationDto & { search?: string }) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
     const where: Prisma.CustomerWhereInput = {
       storeId,
       deletedAt: null,
@@ -22,13 +24,13 @@ export class CustomersService {
     const [data, total] = await Promise.all([
       this.prisma.customer.findMany({
         where,
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.customer.count({ where }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    return paginate(data, total, page, limit);
   }
 
   async create(
