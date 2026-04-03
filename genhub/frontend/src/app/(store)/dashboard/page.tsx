@@ -41,18 +41,27 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      try {
-        const [dash, ordersRes] = await Promise.all([
-          apiFetch<DashboardData>('/reports/dashboard'),
-          apiFetch<PaginatedOrders>('/orders?page=1&limit=5'),
-        ]);
-        setDashboard(dash);
-        setRecentOrders(ordersRes.data ?? []);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Không thể tải dữ liệu tổng quan');
-      } finally {
-        setLoading(false);
+      const [dashResult, ordersResult] = await Promise.allSettled([
+        apiFetch<DashboardData>('/reports/dashboard'),
+        apiFetch<PaginatedOrders>('/orders?page=1&limit=5'),
+      ]);
+
+      if (dashResult.status === 'fulfilled') {
+        setDashboard(dashResult.value);
+      } else {
+        toast.error(
+          dashResult.reason instanceof Error
+            ? dashResult.reason.message
+            : 'Không thể tải dữ liệu tổng quan',
+        );
       }
+
+      if (ordersResult.status === 'fulfilled') {
+        setRecentOrders(ordersResult.value?.data ?? []);
+      }
+      // Orders failure is non-critical — dashboard still renders without recent orders
+
+      setLoading(false);
     };
     fetchAll();
   }, []);

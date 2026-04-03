@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Minus, Trash2, ShoppingCart, X, User, Loader2, UserPlus, Phone } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cart.store';
+import { useAuthStore } from '@/lib/stores/auth.store';
 import { formatCurrency } from '@/lib/utils/format';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
@@ -154,6 +155,9 @@ function QuickCreateCustomer({ initialName = '', onClose, onCreated }: QuickCrea
 
 /* ---------- Component ---------- */
 export default function PosPage() {
+  const authUser = useAuthStore((s) => s.user);
+  const storeName = authUser?.store?.name ?? 'GENHUB POS';
+
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showCart, setShowCart] = useState(false);
@@ -377,6 +381,7 @@ export default function PosPage() {
         changeAmount: result.changeAmount,
         customerName: cart.customerName,
         customerPhone: cart.customerPhone,
+        storeName,
       };
 
       setShowPaymentModal(false);

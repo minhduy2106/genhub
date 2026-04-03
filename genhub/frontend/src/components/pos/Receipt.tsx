@@ -1,7 +1,5 @@
 'use client';
 
-import { useAuthStore } from '@/lib/stores/auth.store';
-
 export interface ReceiptItem {
   name: string;
   sku?: string;
@@ -26,12 +24,13 @@ export interface ReceiptData {
   changeAmount: number;
   customerName?: string | null;
   customerPhone?: string | null;
+  storeName?: string;
 }
 
 const PAYMENT_LABEL: Record<string, string> = {
-  cash: 'Tiền mặt',
-  card: 'Thẻ',
-  bank_transfer: 'Chuyển khoản',
+  cash: 'Tien mat',
+  card: 'The',
+  bank_transfer: 'Chuyen khoan',
 };
 
 function paymentLabel(method: string): string {
@@ -39,7 +38,7 @@ function paymentLabel(method: string): string {
 }
 
 function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  return new Intl.NumberFormat('vi-VN').format(amount) + 'd';
 }
 
 function formatDateVN(iso: string): string {
@@ -52,59 +51,70 @@ function formatDateVN(iso: string): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-interface ReceiptProps {
-  data: ReceiptData;
-  onNewOrder: () => void;
-  onClose: () => void;
+/** Pad a string on the right to fill `width` characters */
+function padEnd(str: string, width: number): string {
+  if (str.length >= width) return str.slice(0, width);
+  return str + ' '.repeat(width - str.length);
 }
 
-function buildReceiptHTML(data: ReceiptData, storeName: string): string {
-  const itemRows = data.items
-    .map(
-      (item, i) => `
-      <tr>
-        <td style="padding:3px 2px;text-align:center;">${i + 1}</td>
-        <td style="padding:3px 2px;">${item.name}</td>
-        <td style="padding:3px 2px;text-align:center;">${item.quantity}</td>
-        <td style="padding:3px 2px;text-align:right;">${formatVND(item.unitPrice)}</td>
-        <td style="padding:3px 2px;text-align:right;">${formatVND(item.lineTotal)}</td>
-      </tr>`,
-    )
+/** Pad a string on the left to fill `width` characters */
+function padStart(str: string, width: number): string {
+  if (str.length >= width) return str.slice(0, width);
+  return ' '.repeat(width - str.length) + str;
+}
+
+const RECEIPT_WIDTH = 32; // characters wide (58mm paper ~32 chars at 12px mono)
+
+function buildReceiptHTML(data: ReceiptData): string {
+  const storeName = data.storeName ?? 'GENHUB POS';
+  const dash = '-'.repeat(RECEIPT_WIDTH);
+
+  // Center a string in RECEIPT_WIDTH
+  const center = (s: string) => {
+    const pad = Math.max(0, Math.floor((RECEIPT_WIDTH - s.length) / 2));
+    return ' '.repeat(pad) + s;
+  };
+
+  // Build item lines — two-line format like real thermal receipts
+  const itemLines = data.items
+    .map((item, i) => {
+      const nameLabel = `${i + 1}. ${item.name}`;
+      const qtyPriceLabel = `   ${item.quantity} x ${formatVND(item.unitPrice)}`;
+      const totalLabel = formatVND(item.lineTotal);
+      const spacer = RECEIPT_WIDTH - qtyPriceLabel.length - totalLabel.length;
+      const line2 = qtyPriceLabel + (spacer > 0 ? ' '.repeat(spacer) : ' ') + totalLabel;
+      return `<div>${escHtml(nameLabel)}</div><div>${escHtml(line2)}</div>`;
+    })
     .join('');
 
+  // Info rows helper
+  const infoRow = (label: string, value: string) => {
+    const spacer = RECEIPT_WIDTH - label.length - value.length;
+    const line = label + (spacer > 0 ? ' '.repeat(spacer) : ' ') + value;
+    return `<div>${escHtml(line)}</div>`;
+  };
+
+  const subtotalRow = infoRow('Tam tinh:', formatVND(data.subtotal));
   const discountRow =
     data.discountAmount > 0
-      ? `<tr>
-          <td style="color:#888;">Giảm giá:</td>
-          <td style="text-align:right;color:#e74c3c;">-${formatVND(data.discountAmount)}</td>
-        </tr>`
+      ? infoRow('Giam gia:', '-' + formatVND(data.discountAmount))
       : '';
 
-  const paymentRows = data.payments
-    .map(
-      (p) => `
-      <tr>
-        <td style="color:#888;">${paymentLabel(p.method)}:</td>
-        <td style="text-align:right;">${formatVND(p.amount)}</td>
-      </tr>`,
-    )
+  const totalLabel = 'TONG CONG:';
+  const totalValue = formatVND(data.totalAmount);
+  const totalSpacer = RECEIPT_WIDTH - totalLabel.length - totalValue.length;
+  const totalLine =
+    totalLabel + (totalSpacer > 0 ? ' '.repeat(totalSpacer) : ' ') + totalValue;
+
+  const paymentLines = data.payments
+    .map((p) => infoRow(paymentLabel(p.method) + ':', formatVND(p.amount)))
     .join('');
+  const changeLine =
+    data.changeAmount > 0 ? infoRow('Tien thua:', formatVND(data.changeAmount)) : '';
 
-  const changeRow =
-    data.changeAmount > 0
-      ? `<tr>
-          <td style="color:#888;">Tiền thừa:</td>
-          <td style="text-align:right;font-weight:600;">${formatVND(data.changeAmount)}</td>
-        </tr>`
-      : '';
-
-  const customerRows = [
-    data.customerName
-      ? `<tr><td style="color:#888;">Khách hàng:</td><td style="text-align:right;font-weight:500;">${data.customerName}</td></tr>`
-      : '',
-    data.customerPhone
-      ? `<tr><td style="color:#888;">SĐT:</td><td style="text-align:right;">${data.customerPhone}</td></tr>`
-      : '',
+  const customerLines = [
+    data.customerName ? infoRow('Khach hang:', data.customerName) : '',
+    data.customerPhone ? infoRow('SDT:', data.customerPhone) : '',
   ]
     .filter(Boolean)
     .join('');
@@ -113,238 +123,220 @@ function buildReceiptHTML(data: ReceiptData, storeName: string): string {
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hóa đơn ${data.orderCode}</title>
+  <title>Hoa don ${escHtmlAttr(data.orderCode)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Courier New', Courier, monospace;
       font-size: 12px;
-      width: 80mm;
+      width: 58mm;
       margin: 0 auto;
-      padding: 8px;
+      padding: 6px 4px 12px;
       color: #000;
       background: #fff;
+      line-height: 1.5;
+      white-space: pre;
     }
-    .center { text-align: center; }
-    .store-name { font-size: 16px; font-weight: bold; letter-spacing: 1px; }
-    .dashed { border-top: 1px dashed #555; margin: 8px 0; }
-    table { width: 100%; border-collapse: collapse; }
-    .info-table td { padding: 2px 0; vertical-align: top; }
-    .items-table th {
-      padding: 3px 2px;
-      border-bottom: 1px solid #ccc;
-      font-size: 11px;
-    }
-    .items-table td { font-size: 11px; vertical-align: top; }
-    .totals-table td { padding: 3px 0; }
-    .total-row td { font-size: 15px; font-weight: bold; border-top: 1px solid #333; padding-top: 6px; }
-    .footer { text-align: center; color: #555; margin-top: 8px; font-size: 12px; }
+    .store { font-size: 15px; font-weight: bold; text-align: center; letter-spacing: 1px; white-space: pre; }
+    .subtitle { text-align: center; font-size: 11px; white-space: pre; }
+    .dash { white-space: pre; }
+    .items { white-space: pre; }
+    .total-line { font-size: 14px; font-weight: bold; white-space: pre; }
+    .footer { text-align: center; margin-top: 6px; white-space: pre; }
     @media print {
-      body { width: 80mm; }
+      body { width: 58mm; margin: 0; padding: 4px 4px 12px; }
     }
   </style>
 </head>
 <body>
-  <div class="center">
-    <div class="store-name">${storeName}</div>
-    <div style="font-size:11px;color:#555;margin-top:2px;">HÓA ĐƠN BÁN HÀNG</div>
-  </div>
-
-  <div class="dashed"></div>
-
-  <table class="info-table">
-    <tr>
-      <td style="color:#888;">Mã đơn:</td>
-      <td style="text-align:right;font-weight:600;">${data.orderCode}</td>
-    </tr>
-    <tr>
-      <td style="color:#888;">Ngày:</td>
-      <td style="text-align:right;">${formatDateVN(data.createdAt)}</td>
-    </tr>
-    ${customerRows}
-  </table>
-
-  <div class="dashed"></div>
-
-  <table class="items-table">
-    <thead>
-      <tr>
-        <th style="text-align:center;width:20px;">STT</th>
-        <th style="text-align:left;">Tên SP</th>
-        <th style="text-align:center;width:24px;">SL</th>
-        <th style="text-align:right;width:60px;">Đơn giá</th>
-        <th style="text-align:right;width:65px;">T.Tiền</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${itemRows}
-    </tbody>
-  </table>
-
-  <div class="dashed"></div>
-
-  <table class="totals-table">
-    <tr>
-      <td style="color:#888;">Tạm tính:</td>
-      <td style="text-align:right;">${formatVND(data.subtotal)}</td>
-    </tr>
-    ${discountRow}
-    <tr class="total-row">
-      <td>Tổng cộng:</td>
-      <td style="text-align:right;">${formatVND(data.totalAmount)}</td>
-    </tr>
-  </table>
-
-  <div class="dashed"></div>
-
-  <table class="totals-table">
-    ${paymentRows}
-    ${changeRow}
-  </table>
-
-  <div class="dashed"></div>
-
-  <div class="footer">Cảm ơn quý khách! Hẹn gặp lại.</div>
+<div class="store">${escHtml(storeName)}</div>
+<div class="subtitle">HOA DON BAN HANG</div>
+<div class="dash">${dash}</div>
+${infoRow('Ma don:', data.orderCode)}
+${infoRow('Ngay gio:', formatDateVN(data.createdAt))}
+${customerLines}
+<div class="dash">${dash}</div>
+<div class="items">${itemLines}</div>
+<div class="dash">${dash}</div>
+${subtotalRow}
+${discountRow}
+<div class="dash">${dash}</div>
+<div class="total-line">${escHtml(totalLine)}</div>
+<div class="dash">${dash}</div>
+${paymentLines}
+${changeLine}
+<div class="dash">${dash}</div>
+<div class="footer">Cam on quy khach! Hen gap lai.</div>
 </body>
 </html>`;
 }
 
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function escHtmlAttr(s: string): string {
+  return escHtml(s).replace(/"/g, '&quot;');
+}
+
+interface ReceiptProps {
+  data: ReceiptData;
+  onNewOrder: () => void;
+  onClose: () => void;
+}
+
 export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
-  const user = useAuthStore((s) => s.user);
-  const storeName = user?.store?.name ?? 'GENHUB POS';
+  const storeName = data.storeName ?? 'GENHUB POS';
 
   const handlePrint = () => {
-    const html = buildReceiptHTML(data, storeName);
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) {
-      alert('Trình duyệt đã chặn cửa sổ popup. Vui lòng cho phép popup và thử lại.');
-      return;
-    }
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    // Wait for content to load then trigger print
-    printWindow.onload = () => {
-      printWindow.focus();
-      printWindow.print();
-      printWindow.onafterprint = () => printWindow.close();
+    const html = buildReceiptHTML(data);
+
+    // Use hidden iframe to avoid popup blockers
+    const existing = document.getElementById('receipt-print-frame');
+    if (existing) existing.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'receipt-print-frame';
+    iframe.style.cssText =
+      'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    // Wait for resources then print
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } finally {
+        // Remove after a short delay to let the print dialog open
+        setTimeout(() => {
+          iframe.remove();
+        }, 2000);
+      }
     };
+  };
+
+  const DASH = '-'.repeat(32);
+
+  // Helper: left/right row, total width 32 chars
+  const Row = ({
+    label,
+    value,
+    bold,
+    red,
+  }: {
+    label: string;
+    value: string;
+    bold?: boolean;
+    red?: boolean;
+  }) => {
+    const spacer = Math.max(1, 32 - label.length - value.length);
+    return (
+      <div
+        className={`flex whitespace-pre ${bold ? 'font-bold' : ''} ${red ? 'text-red-600' : ''}`}
+      >
+        <span>{label}</span>
+        <span>{' '.repeat(spacer)}</span>
+        <span>{value}</span>
+      </div>
+    );
   };
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-xl max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-xl"
+        className="bg-white rounded-xl w-full max-w-xs max-h-[90vh] overflow-y-auto shadow-2xl"
       >
         {/* Receipt preview */}
-        <div className="p-5 text-center font-mono text-sm">
-          {/* Store info */}
-          <h2 className="text-base font-bold tracking-wide">{storeName}</h2>
-          <p className="text-xs text-gray-400 mt-0.5">HÓA ĐƠN BÁN HÀNG</p>
+        <div
+          className="p-4 font-mono text-xs leading-relaxed"
+          style={{ fontFamily: "'Courier New', Courier, monospace", fontSize: '12px' }}
+        >
+          {/* Header */}
+          <div className="text-center font-bold text-sm tracking-wide">{storeName}</div>
+          <div className="text-center text-[11px] text-gray-500">HOA DON BAN HANG</div>
 
-          <div className="border-t border-dashed my-3" />
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
 
           {/* Order info */}
-          <div className="text-xs space-y-1 text-left">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Mã đơn:</span>
-              <span className="font-semibold">{data.orderCode}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Ngày:</span>
-              <span>{formatDateVN(data.createdAt)}</span>
-            </div>
-            {data.customerName && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">Khách hàng:</span>
-                <span className="font-medium">{data.customerName}</span>
+          <Row label="Ma don:" value={data.orderCode} />
+          <Row label="Ngay gio:" value={formatDateVN(data.createdAt)} />
+          {data.customerName && <Row label="Khach hang:" value={data.customerName} />}
+          {data.customerPhone && <Row label="SDT:" value={data.customerPhone} />}
+
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
+
+          {/* Items */}
+          {data.items.map((item, i) => {
+            const qtyPrice = `   ${item.quantity} x ${formatVND(item.unitPrice)}`;
+            const total = formatVND(item.lineTotal);
+            const spacer = Math.max(1, 32 - qtyPrice.length - total.length);
+            return (
+              <div key={i}>
+                <div className="whitespace-pre-wrap break-words">{`${i + 1}. ${item.name}`}</div>
+                <div className="flex whitespace-pre">
+                  <span>{qtyPrice}</span>
+                  <span>{' '.repeat(spacer)}</span>
+                  <span>{total}</span>
+                </div>
               </div>
-            )}
-            {data.customerPhone && (
-              <div className="flex justify-between">
-                <span className="text-gray-500">SĐT:</span>
-                <span>{data.customerPhone}</span>
-              </div>
-            )}
-          </div>
+            );
+          })}
 
-          <div className="border-t border-dashed my-3" />
-
-          {/* Items table */}
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-gray-300">
-                <th className="text-center py-1 font-semibold w-6">STT</th>
-                <th className="text-left py-1 font-semibold">Tên SP</th>
-                <th className="text-center py-1 font-semibold w-6">SL</th>
-                <th className="text-right py-1 font-semibold">Đơn giá</th>
-                <th className="text-right py-1 font-semibold">T.Tiền</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((item, i) => (
-                <tr key={i} className="border-b border-dotted border-gray-200">
-                  <td className="text-center py-1">{i + 1}</td>
-                  <td
-                    className="text-left py-1 pr-1"
-                    style={{ maxWidth: '90px', wordBreak: 'break-word' }}
-                  >
-                    {item.name}
-                  </td>
-                  <td className="text-center py-1">{item.quantity}</td>
-                  <td className="text-right py-1 whitespace-nowrap">{formatVND(item.unitPrice)}</td>
-                  <td className="text-right py-1 whitespace-nowrap">{formatVND(item.lineTotal)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="border-t border-dashed my-3" />
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
 
           {/* Totals */}
-          <div className="space-y-1 text-xs text-left">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Tạm tính:</span>
-              <span>{formatVND(data.subtotal)}</span>
-            </div>
-            {data.discountAmount > 0 && (
-              <div className="flex justify-between text-red-500">
-                <span>Giảm giá:</span>
-                <span>-{formatVND(data.discountAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-bold text-base border-t border-gray-300 pt-1.5 mt-1">
-              <span>Tổng cộng:</span>
-              <span>{formatVND(data.totalAmount)}</span>
-            </div>
+          <Row label="Tam tinh:" value={formatVND(data.subtotal)} />
+          {data.discountAmount > 0 && (
+            <Row label="Giam gia:" value={`-${formatVND(data.discountAmount)}`} red />
+          )}
+
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
+
+          {/* Grand total */}
+          <div className="font-bold text-sm whitespace-pre">
+            {(() => {
+              const label = 'TONG CONG:';
+              const value = formatVND(data.totalAmount);
+              const spacer = Math.max(1, 32 - label.length - value.length);
+              return (
+                <div className="flex">
+                  <span>{label}</span>
+                  <span>{' '.repeat(spacer)}</span>
+                  <span>{value}</span>
+                </div>
+              );
+            })()}
           </div>
 
-          <div className="border-t border-dashed my-3" />
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
 
           {/* Payments */}
-          <div className="space-y-1 text-xs text-left">
-            {data.payments.map((p, i) => (
-              <div key={i} className="flex justify-between">
-                <span className="text-gray-500">{paymentLabel(p.method)}:</span>
-                <span className="font-medium">{formatVND(p.amount)}</span>
-              </div>
-            ))}
-            {data.changeAmount > 0 && (
-              <div className="flex justify-between font-semibold">
-                <span>Tiền thừa:</span>
-                <span>{formatVND(data.changeAmount)}</span>
-              </div>
-            )}
+          {data.payments.map((p, i) => (
+            <Row key={i} label={`${paymentLabel(p.method)}:`} value={formatVND(p.amount)} />
+          ))}
+          {data.changeAmount > 0 && (
+            <Row label="Tien thua:" value={formatVND(data.changeAmount)} bold />
+          )}
+
+          <div className="my-1.5 text-gray-400 whitespace-pre">{DASH}</div>
+
+          <div className="text-center text-[11px] text-gray-500">
+            Cam on quy khach! Hen gap lai.
           </div>
-
-          <div className="border-t border-dashed my-3" />
-
-          <p className="text-xs text-gray-400 text-center">Cảm ơn quý khách! Hẹn gặp lại.</p>
         </div>
 
         {/* Action buttons */}
@@ -353,13 +345,13 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
             onClick={handlePrint}
             className="flex-1 py-2.5 border border-[#FF6B35] text-[#FF6B35] rounded-xl font-medium hover:bg-orange-50 transition-colors text-sm"
           >
-            In hóa đơn
+            In hoa don
           </button>
           <button
             onClick={onNewOrder}
             className="flex-1 py-2.5 bg-[#FF6B35] text-white rounded-xl font-medium hover:bg-[#E55A2B] transition-colors text-sm"
           >
-            Đơn mới
+            Don moi
           </button>
         </div>
       </div>
