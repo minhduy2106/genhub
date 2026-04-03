@@ -1,7 +1,20 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CustomersService } from './customers.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+} from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('customers')
@@ -10,7 +23,10 @@ export class CustomersController {
 
   @Get()
   @RequirePermissions('customers:view')
-  findAll(@CurrentUser() user: JwtPayload, @Query() query: PaginationDto & { search?: string }) {
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query() query: PaginationDto & { search?: string },
+  ) {
     return this.service.findAll(user.storeId, query);
   }
 
@@ -21,8 +37,18 @@ export class CustomersController {
 
   @Post()
   @RequirePermissions('customers:create')
-  create(@CurrentUser() user: JwtPayload, @Body() body: { fullName: string; phone?: string; email?: string; address?: string }) {
-    return this.service.create(user.storeId, body as any);
+  create(
+    @CurrentUser() user: JwtPayload,
+    @Body()
+    body: {
+      fullName: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      code?: string;
+    },
+  ) {
+    return this.service.create(user.storeId, body);
   }
 
   @Get(':id')
@@ -37,8 +63,12 @@ export class CustomersController {
 
   @Patch(':id')
   @RequirePermissions('customers:update')
-  update(@Param('id') id: string, @CurrentUser() user: JwtPayload, @Body() body: Record<string, unknown>) {
-    return this.service.update(id, user.storeId, body as any);
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() body: Prisma.CustomerUpdateInput,
+  ) {
+    return this.service.update(id, user.storeId, body);
   }
 
   @Delete(':id')

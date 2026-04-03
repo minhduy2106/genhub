@@ -1,8 +1,19 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+} from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
-import { CurrentUser, JwtPayload } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+} from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('orders')
@@ -20,7 +31,10 @@ export class OrdersController {
 
   @Post('pos')
   @RequirePermissions('orders:create')
-  createPosOrder(@CurrentUser() user: JwtPayload, @Body() dto: CreatePosOrderDto) {
+  createPosOrder(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreatePosOrderDto,
+  ) {
     return this.service.createPosOrder(user.storeId, user.sub, dto);
   }
 
@@ -41,7 +55,7 @@ export class OrdersController {
   }
 
   @Patch(':id/complete')
-  @RequirePermissions('orders:view')
+  @RequirePermissions('orders:update')
   complete(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.service.complete(id, user.storeId);
   }

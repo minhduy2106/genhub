@@ -20,13 +20,7 @@ export class InventoryService {
   }
 
   async lowStock(storeId: string) {
-    return this.prisma.inventory.findMany({
-      where: {
-        storeId,
-        quantity: { lte: this.prisma.inventory.fields.lowStockAlert as unknown as number },
-      },
-      include: { product: true, variant: true },
-    });
+    return this.getLowStockItems(storeId);
   }
 
   async getLowStockItems(storeId: string) {
@@ -42,27 +36,43 @@ export class InventoryService {
   }
 
   async purchase(
-    storeId: string, userId: string,
-    items: { productId: string; variantId?: string; quantity: number; unitCost: number }[],
+    storeId: string,
+    userId: string,
+    items: {
+      productId: string;
+      variantId?: string;
+      quantity: number;
+      unitCost: number;
+    }[],
     supplierId?: string,
   ) {
     return this.prisma.$transaction(async (tx) => {
       for (const item of items) {
         const inv = await tx.inventory.findFirst({
-          where: { storeId, productId: item.productId, variantId: item.variantId ?? null },
+          where: {
+            storeId,
+            productId: item.productId,
+            variantId: item.variantId ?? null,
+          },
         });
         if (!inv) throw new BadRequestException('Không tìm thấy tồn kho');
 
         await tx.inventory.update({
           where: { id: inv.id },
-          data: { quantity: { increment: item.quantity }, version: { increment: 1 } },
+          data: {
+            quantity: { increment: item.quantity },
+            version: { increment: 1 },
+          },
         });
 
         await tx.inventoryTransaction.create({
           data: {
-            storeId, inventoryId: inv.id,
-            productId: item.productId, variantId: item.variantId,
-            type: 'purchase', quantityChange: item.quantity,
+            storeId,
+            inventoryId: inv.id,
+            productId: item.productId,
+            variantId: item.variantId,
+            type: 'purchase',
+            quantityChange: item.quantity,
             quantityBefore: inv.quantity,
             quantityAfter: inv.quantity + item.quantity,
             unitCost: item.unitCost,
@@ -77,14 +87,21 @@ export class InventoryService {
   }
 
   async adjustment(
-    storeId: string, userId: string,
-    productId: string, variantId: string | undefined,
-    newQuantity: number, notes?: string,
+    storeId: string,
+    userId: string,
+    productId: string,
+    variantId: string | undefined,
+    newQuantity: number,
+    notes?: string,
   ) {
     const inv = await this.prisma.inventory.findFirst({
       where: { storeId, productId, variantId: variantId ?? null },
     });
     if (!inv) throw new BadRequestException('Không tìm thấy tồn kho');
+
+    if (newQuantity < 0) {
+      throw new BadRequestException('Số lượng tồn kho không thể âm');
+    }
 
     const change = newQuantity - inv.quantity;
     const type = change >= 0 ? 'adjustment_in' : 'adjustment_out';
@@ -96,10 +113,16 @@ export class InventoryService {
 
     await this.prisma.inventoryTransaction.create({
       data: {
-        storeId, inventoryId: inv.id, productId, variantId,
-        type, quantityChange: change,
-        quantityBefore: inv.quantity, quantityAfter: newQuantity,
-        notes, performedBy: userId,
+        storeId,
+        inventoryId: inv.id,
+        productId,
+        variantId,
+        type,
+        quantityChange: change,
+        quantityBefore: inv.quantity,
+        quantityAfter: newQuantity,
+        notes,
+        performedBy: userId,
       },
     });
     return { message: 'Điều chỉnh tồn kho thành công' };
@@ -109,7 +132,11 @@ export class InventoryService {
     const [data, total] = await Promise.all([
       this.prisma.inventoryTransaction.findMany({
         where: { storeId },
-        include: { product: true, variant: true, performer: { select: { fullName: true } } },
+        include: {
+          product: true,
+          variant: true,
+          performer: { select: { fullName: true } },
+        },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
         orderBy: { createdAt: 'desc' },

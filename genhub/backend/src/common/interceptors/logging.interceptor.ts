@@ -12,7 +12,9 @@ export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const req = context.switchToHttp().getRequest();
+    const req = context
+      .switchToHttp()
+      .getRequest<{ method: string; url: string }>();
     const { method, url } = req;
     const now = Date.now();
 

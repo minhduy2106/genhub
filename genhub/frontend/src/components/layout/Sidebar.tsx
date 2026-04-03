@@ -3,13 +3,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
-  Warehouse, Users, BarChart3, Truck, UserCog, Settings, ChevronLeft, Store,
+  Warehouse, Users, BarChart3, Settings, ChevronLeft, Store,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const iconMap: Record<string, React.ElementType> = {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
-  Warehouse, Users, BarChart3, Truck, UserCog, Settings,
+  Warehouse, Users, BarChart3, Settings,
 };
 
 const menuItems = [
@@ -20,8 +20,6 @@ const menuItems = [
   { label: 'Kho hàng', href: '/inventory', icon: 'Warehouse' },
   { label: 'Khách hàng', href: '/customers', icon: 'Users' },
   { label: 'Báo cáo', href: '/reports', icon: 'BarChart3' },
-  { label: 'Nhà cung cấp', href: '/suppliers', icon: 'Truck' },
-  { label: 'Nhân viên', href: '/staff', icon: 'UserCog' },
   { label: 'Cài đặt', href: '/settings', icon: 'Settings' },
 ];
 

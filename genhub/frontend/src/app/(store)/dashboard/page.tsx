@@ -59,7 +59,7 @@ export default function DashboardPage() {
           <h3 className="font-semibold mb-4">Top sản phẩm bán chạy</h3>
           <div className="space-y-3">
             {mockDashboard.topProducts.map((p, i) => (
-              <div key={p.name} className="flex items-center justify-between">
+              <div key={`top-product-${i}`} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-[#FF6B35] w-6">#{i + 1}</span>
                   <span className="text-sm">{p.name}</span>

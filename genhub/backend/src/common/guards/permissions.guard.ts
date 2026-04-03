@@ -14,7 +14,7 @@ export class PermissionsGuard implements CanActivate {
     );
     if (!required || required.length === 0) return true;
 
-    const user = context.switchToHttp().getRequest().user as JwtPayload;
+    const user = context.switchToHttp().getRequest<{ user: JwtPayload }>().user;
     if (!user) return false;
     if (user.role === 'owner') return true;
 

@@ -115,7 +115,7 @@ export default function PosPage() {
             <p className="text-center text-gray-400 py-8">Giỏ hàng trống</p>
           ) : (
             cart.items.map((item) => (
-              <div key={item.productId} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+              <div key={`${item.productId}-${item.variantId ?? 'default'}`} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.name}</p>
                   <p className="text-sm text-[#FF6B35]">{formatCurrency(item.price)}</p>

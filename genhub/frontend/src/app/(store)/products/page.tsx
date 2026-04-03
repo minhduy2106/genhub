@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
-import Link from 'next/link';
 import { Plus, Search } from 'lucide-react';
 import { mockProducts } from '@/lib/mock-data';
 import { formatCurrency } from '@/lib/utils/format';
+import { toast } from 'sonner';
 
 export default function ProductsPage() {
   const [search, setSearch] = useState('');
@@ -18,13 +18,13 @@ export default function ProductsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Sản phẩm</h1>
-        <Link
-          href="/products/new"
+        <button
+          onClick={() => toast.info('Tính năng thêm sản phẩm đang phát triển')}
           className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B]"
         >
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Thêm sản phẩm</span>
-        </Link>
+        </button>
       </div>
 
       <div className="relative">

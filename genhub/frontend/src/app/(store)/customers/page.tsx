@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { mockCustomers } from '@/lib/mock-data';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { toast } from 'sonner';
 
 export default function CustomersPage() {
   const [search, setSearch] = useState('');
@@ -17,7 +18,10 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Khách hàng</h1>
-        <button className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B]">
+        <button
+          onClick={() => toast.info('Tính năng thêm khách hàng đang phát triển')}
+          className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B]"
+        >
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Thêm khách hàng</span>
         </button>

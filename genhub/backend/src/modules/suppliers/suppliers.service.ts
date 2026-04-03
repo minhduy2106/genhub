@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, paginate } from '../../common/dto/pagination.dto';
 
@@ -7,10 +8,12 @@ export class SuppliersService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(storeId: string, query: PaginationDto) {
-    const where = { storeId, deletedAt: null as null };
+    const where = { storeId, deletedAt: null };
     const [data, total] = await Promise.all([
       this.prisma.supplier.findMany({
-        where, skip: (query.page - 1) * query.limit, take: query.limit,
+        where,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.supplier.count({ where }),
@@ -18,23 +21,37 @@ export class SuppliersService {
     return paginate(data, total, query.page, query.limit);
   }
 
-  async create(storeId: string, data: { name: string; phone?: string; email?: string; address?: string; contactPerson?: string }) {
+  async create(
+    storeId: string,
+    data: {
+      name: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      contactPerson?: string;
+    },
+  ) {
     return this.prisma.supplier.create({ data: { ...data, storeId } });
   }
 
   async findOne(id: string, storeId: string) {
-    const s = await this.prisma.supplier.findFirst({ where: { id, storeId, deletedAt: null } });
+    const s = await this.prisma.supplier.findFirst({
+      where: { id, storeId, deletedAt: null },
+    });
     if (!s) throw new NotFoundException('Không tìm thấy nhà cung cấp');
     return s;
   }
 
-  async update(id: string, storeId: string, data: Record<string, unknown>) {
+  async update(id: string, storeId: string, data: Prisma.SupplierUpdateInput) {
     await this.findOne(id, storeId);
-    return this.prisma.supplier.update({ where: { id }, data: data as any });
+    return this.prisma.supplier.update({ where: { id }, data });
   }
 
   async remove(id: string, storeId: string) {
     await this.findOne(id, storeId);
-    return this.prisma.supplier.update({ where: { id }, data: { deletedAt: new Date() } });
+    return this.prisma.supplier.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }

@@ -132,13 +132,26 @@ export class ProductsService {
 
   async update(id: string, storeId: string, dto: Partial<CreateProductDto>) {
     await this.findOne(id, storeId);
-    const { variants, initialQuantity, lowStockAlert, categoryId, attributes, ...rest } = dto;
+    const {
+      variants: _variants,
+      initialQuantity: _initialQuantity,
+      lowStockAlert: _lowStockAlert,
+      categoryId,
+      attributes,
+      ...rest
+    } = dto;
     return this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
-        ...(categoryId !== undefined && { category: categoryId ? { connect: { id: categoryId } } : { disconnect: true } }),
-        ...(attributes !== undefined && { attributes: attributes as Prisma.InputJsonValue }),
+        ...(categoryId !== undefined && {
+          category: categoryId
+            ? { connect: { id: categoryId } }
+            : { disconnect: true },
+        }),
+        ...(attributes !== undefined && {
+          attributes: attributes as Prisma.InputJsonValue,
+        }),
       },
       include: { variants: true, inventory: true },
     });
@@ -162,7 +175,7 @@ export class ProductsService {
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { sku: { contains: q, mode: 'insensitive' } },
-          { barcode: q },
+          { barcode: { contains: q, mode: 'insensitive' } },
         ],
       },
       include: { variants: true, inventory: true, images: { take: 1 } },

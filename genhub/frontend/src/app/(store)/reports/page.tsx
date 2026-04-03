@@ -60,7 +60,7 @@ export default function ReportsPage() {
           </thead>
           <tbody>
             {mockDashboard.topProducts.map((p, i) => (
-              <tr key={p.name} className="border-b last:border-0">
+              <tr key={`report-product-${i}`} className="border-b last:border-0">
                 <td className="py-3 font-bold text-[#FF6B35]">{i + 1}</td>
                 <td className="py-3">{p.name}</td>
                 <td className="py-3 text-right">{p.quantity}</td>

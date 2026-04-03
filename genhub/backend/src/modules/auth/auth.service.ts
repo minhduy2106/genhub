@@ -45,7 +45,7 @@ export class AuthService {
       const user = await tx.user.create({
         data: {
           storeId: store.id,
-          roleId: ownerRole!.id,
+          roleId: ownerRole.id,
           email: dto.email,
           phone: dto.phone,
           passwordHash,
@@ -63,7 +63,10 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email, deletedAt: null, isActive: true },
-      include: { role: { include: { permissions: { include: { permission: true } } } }, store: true },
+      include: {
+        role: { include: { permissions: { include: { permission: true } } } },
+        store: true,
+      },
     });
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
@@ -80,8 +83,11 @@ export class AuthService {
     });
 
     const permissions = user.role.permissions.map((rp) => rp.permission.slug);
-    const tokens = await this.generateTokens(
-      user.id, user.storeId, user.role.slug, permissions,
+    const tokens = this.generateTokens(
+      user.id,
+      user.storeId,
+      user.role.slug,
+      permissions,
     );
 
     return {
@@ -92,7 +98,11 @@ export class AuthService {
         email: user.email,
         role: user.role.slug,
         permissions,
-        store: { id: user.store.id, name: user.store.name, plan: user.store.plan },
+        store: {
+          id: user.store.id,
+          name: user.store.name,
+          plan: user.store.plan,
+        },
       },
     };
   }
@@ -114,15 +124,26 @@ export class AuthService {
       phone: user.phone,
       role: user.role.slug,
       permissions: user.role.permissions.map((rp) => rp.permission.slug),
-      store: { id: user.store.id, name: user.store.name, plan: user.store.plan },
+      store: {
+        id: user.store.id,
+        name: user.store.name,
+        plan: user.store.plan,
+      },
     };
   }
 
-  private async generateTokens(
-    userId: string, storeId: string, role: string, permissions: string[] = [],
+  private generateTokens(
+    userId: string,
+    storeId: string,
+    role: string,
+    permissions: string[] = [],
   ) {
     const payload: JwtPayload = {
-      sub: userId, storeId, role, permissions, fullName: '',
+      sub: userId,
+      storeId,
+      role,
+      permissions,
+      fullName: '',
     };
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refreshToken = this.jwtService.sign(

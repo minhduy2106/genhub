@@ -1,5 +1,7 @@
 import {
-  Injectable, NotFoundException, BadRequestException,
+  Injectable,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
@@ -45,7 +47,11 @@ export class OrdersService {
   }
 
   /** POS Order: 1 transaction - tạo đơn + trừ kho + thanh toán */
-  async createPosOrder(storeId: string, userId: string, dto: CreatePosOrderDto) {
+  async createPosOrder(
+    storeId: string,
+    userId: string,
+    dto: CreatePosOrderDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Sinh mã đơn
       const store = await tx.store.update({
@@ -57,10 +63,25 @@ export class OrdersService {
       // 2. Validate & build order items
       let subtotal = 0;
       const orderItems: Prisma.OrderItemCreateManyOrderInput[] = [];
+      const inventoryTransactionData: {
+        storeId: string;
+        inventoryId: string;
+        productId: string;
+        variantId?: string;
+        quantityChange: number;
+        quantityBefore: number;
+        quantityAfter: number;
+        unitCost: Prisma.Decimal | null;
+      }[] = [];
 
       for (const item of dto.items) {
         const product = await tx.product.findFirst({
-          where: { id: item.productId, storeId, deletedAt: null },
+          where: {
+            id: item.productId,
+            storeId,
+            deletedAt: null,
+            status: 'active',
+          },
         });
         if (!product) {
           throw new BadRequestException(`Sản phẩm không tồn tại`);
@@ -69,7 +90,8 @@ export class OrdersService {
         // Trừ tồn kho (optimistic locking)
         const inv = await tx.inventory.findFirst({
           where: {
-            storeId, productId: item.productId,
+            storeId,
+            productId: item.productId,
             variantId: item.variantId ?? null,
           },
         });
@@ -96,17 +118,16 @@ export class OrdersService {
           );
         }
 
-        // Ghi log inventory transaction
-        await tx.inventoryTransaction.create({
-          data: {
-            storeId, inventoryId: inv.id,
-            productId: item.productId, variantId: item.variantId,
-            type: 'sale', quantityChange: -item.quantity,
-            quantityBefore: inv.quantity,
-            quantityAfter: inv.quantity - item.quantity,
-            unitCost: product.costPrice,
-            referenceType: 'order', performedBy: userId,
-          },
+        // Collect inventory transaction data (created after order for referenceId)
+        inventoryTransactionData.push({
+          storeId,
+          inventoryId: inv.id,
+          productId: item.productId,
+          variantId: item.variantId,
+          quantityChange: -item.quantity,
+          quantityBefore: inv.quantity,
+          quantityAfter: inv.quantity - item.quantity,
+          unitCost: product.costPrice,
         });
 
         const discount = item.discountAmount ?? 0;
@@ -132,11 +153,16 @@ export class OrdersService {
       // 3. Tạo order
       const order = await tx.order.create({
         data: {
-          storeId, code, customerId: dto.customerId,
-          channel: 'pos', status: 'completed',
-          subtotal, discountAmount: orderDiscount,
+          storeId,
+          code,
+          customerId: dto.customerId,
+          channel: 'pos',
+          status: 'completed',
+          subtotal,
+          discountAmount: orderDiscount,
           discountType: dto.discountType,
-          totalAmount, paidAmount,
+          totalAmount,
+          paidAmount,
           createdById: userId,
           completedAt: new Date(),
           items: { createMany: { data: orderItems } },
@@ -144,13 +170,36 @@ export class OrdersService {
         include: { items: true },
       });
 
+      // 3b. Ghi log inventory transactions với referenceId
+      for (const txData of inventoryTransactionData) {
+        await tx.inventoryTransaction.create({
+          data: {
+            storeId: txData.storeId,
+            inventoryId: txData.inventoryId,
+            productId: txData.productId,
+            variantId: txData.variantId,
+            type: 'sale',
+            quantityChange: txData.quantityChange,
+            quantityBefore: txData.quantityBefore,
+            quantityAfter: txData.quantityAfter,
+            unitCost: txData.unitCost,
+            referenceType: 'order',
+            referenceId: order.id,
+            performedBy: userId,
+          },
+        });
+      }
+
       // 4. Tạo payments
       for (const p of dto.payments) {
         await tx.payment.create({
           data: {
-            orderId: order.id, storeId,
-            method: p.method, amount: p.amount,
-            status: 'completed', processedById: userId,
+            orderId: order.id,
+            storeId,
+            method: p.method,
+            amount: p.amount,
+            status: 'completed',
+            processedById: userId,
           },
         });
       }
@@ -185,7 +234,8 @@ export class OrdersService {
       for (const item of order.items) {
         await tx.inventory.updateMany({
           where: {
-            storeId, productId: item.productId,
+            storeId,
+            productId: item.productId,
             variantId: item.variantId ?? null,
           },
           data: { quantity: { increment: item.quantity } },

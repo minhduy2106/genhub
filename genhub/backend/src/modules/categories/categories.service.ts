@@ -9,8 +9,11 @@ export class CategoriesService {
 
   async findAll(storeId: string) {
     const categories = await this.prisma.category.findMany({
-      where: { storeId },
-      include: { children: true, _count: { select: { products: true } } },
+      where: { storeId, isActive: true },
+      include: {
+        children: { where: { isActive: true } },
+        _count: { select: { products: true } },
+      },
       orderBy: { sortOrder: 'asc' },
     });
     return categories.filter((c) => !c.parentId);
@@ -25,7 +28,7 @@ export class CategoriesService {
 
   async findOne(id: string, storeId: string) {
     const cat = await this.prisma.category.findFirst({
-      where: { id, storeId },
+      where: { id, storeId, isActive: true },
       include: { children: true },
     });
     if (!cat) throw new NotFoundException('Không tìm thấy danh mục');
@@ -39,6 +42,9 @@ export class CategoriesService {
 
   async remove(id: string, storeId: string) {
     await this.findOne(id, storeId);
-    return this.prisma.category.delete({ where: { id } });
+    return this.prisma.category.update({
+      where: { id },
+      data: { isActive: false },
+    });
   }
 }
