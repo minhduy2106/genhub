@@ -11,6 +11,7 @@ export const ORDER_STATUS = {
 
 export const PAYMENT_METHODS = {
   cash: 'Tiền mặt',
+  card: 'Thẻ',
   bank_transfer: 'Chuyển khoản',
   momo: 'MoMo',
   zalopay: 'ZaloPay',
