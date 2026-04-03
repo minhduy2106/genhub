@@ -14,8 +14,9 @@ s.on('error', () => { process.exit(1); });
 done
 echo "PostgreSQL is ready!"
 
-echo "Running database migrations..."
-npx prisma migrate deploy 2>&1 || npx prisma db push 2>&1 || echo "Warning: Migration/push failed, tables may already exist"
+echo "Pushing database schema..."
+npx prisma db push 2>&1
+echo "Schema push complete."
 
 echo "Running seed (if needed)..."
 # Check if store table has data, if not run seed
