@@ -14,11 +14,25 @@ s.on('error', () => { process.exit(1); });
 done
 echo "PostgreSQL is ready!"
 
-echo "Running Prisma migrations..."
-npx prisma migrate deploy 2>/dev/null || npx prisma db push --accept-data-loss
+echo "Running Prisma schema push..."
+npx prisma db push --accept-data-loss 2>&1
 
 echo "Running seed (if needed)..."
-npx prisma db seed 2>/dev/null || echo "Seed skipped or already seeded"
+# Check if store table has data, if not run seed
+HAS_DATA=$(node -e "
+const { PrismaClient } = require('@prisma/client');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
+prisma.store.count().then(c => { console.log(c); prisma.\$disconnect(); }).catch(() => { console.log(0); prisma.\$disconnect(); });
+" 2>/dev/null)
+
+if [ "$HAS_DATA" = "0" ] || [ -z "$HAS_DATA" ]; then
+  echo "  Database is empty, seeding..."
+  node dist/prisma/seed.js 2>&1 || echo "  Seed failed, continuing..."
+else
+  echo "  Database already has data, skipping seed."
+fi
 
 echo "Starting GenHub API..."
 exec node dist/src/main.js
