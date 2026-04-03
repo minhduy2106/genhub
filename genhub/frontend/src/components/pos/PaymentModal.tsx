@@ -19,9 +19,9 @@ interface PaymentModalProps {
 }
 
 const METHOD_OPTIONS: { key: PaymentMethod; label: string; icon: typeof Banknote }[] = [
-  { key: 'cash', label: 'Tien mat', icon: Banknote },
-  { key: 'card', label: 'The', icon: CreditCard },
-  { key: 'bank_transfer', label: 'Chuyen khoan', icon: Building2 },
+  { key: 'cash', label: 'Tiền mặt', icon: Banknote },
+  { key: 'card', label: 'Thẻ', icon: CreditCard },
+  { key: 'bank_transfer', label: 'Chuyển khoản', icon: Building2 },
 ];
 
 export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoading }: PaymentModalProps) {
@@ -70,7 +70,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
       <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-bold">Thanh toan</h2>
+          <h2 className="text-lg font-bold">Thanh toán</h2>
           <button onClick={onCancel} className="p-1 hover:bg-gray-100 rounded">
             <X className="h-5 w-5" />
           </button>
@@ -79,7 +79,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
         <div className="p-4 space-y-4">
           {/* Total */}
           <div className="text-center py-3 bg-gray-50 rounded-xl">
-            <p className="text-sm text-gray-500">Tong tien</p>
+            <p className="text-sm text-gray-500">Tổng tiền</p>
             <p className="text-3xl font-bold text-[#FF6B35]">{formatCurrency(totalAmount)}</p>
           </div>
 
@@ -94,7 +94,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
               }}
               className="rounded accent-[#FF6B35]"
             />
-            Thanh toan nhieu phuong thuc
+            Thanh toán nhiều phương thức
           </label>
 
           {!splitMode ? (
@@ -124,7 +124,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
               {selectedMethod === 'cash' && (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-gray-600 mb-1">Tien khach dua</label>
+                    <label className="block text-sm text-gray-600 mb-1">Tiền khách đưa</label>
                     <input
                       type="number"
                       value={cashReceived}
@@ -147,7 +147,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
                   </div>
                   {/* Change */}
                   <div className="flex justify-between p-3 bg-green-50 rounded-xl">
-                    <span className="text-sm text-gray-600">Tien thua</span>
+                    <span className="text-sm text-gray-600">Tiền thừa</span>
                     <span className="text-lg font-bold text-green-600">{formatCurrency(changeAmount)}</span>
                   </div>
                 </div>
@@ -170,7 +170,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
 
               {/* Remaining */}
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Con lai:</span>
+                <span className="text-gray-500">Còn lại:</span>
                 <span className={`font-medium ${splitRemaining > 0 ? 'text-red-500' : 'text-green-600'}`}>
                   {formatCurrency(Math.max(0, splitRemaining))}
                 </span>
@@ -190,7 +190,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
                   </select>
                   <input
                     type="number"
-                    placeholder="So tien"
+                    placeholder="Số tiền"
                     value={splitAmount}
                     onChange={(e) => setSplitAmount(e.target.value)}
                     className="flex-1 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
@@ -200,7 +200,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
                     onClick={addSplitPayment}
                     className="px-3 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B]"
                   >
-                    Them
+                    Thêm
                   </button>
                 </div>
               )}
@@ -215,14 +215,14 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
             disabled={isLoading}
             className="flex-1 py-3 border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            Huy
+            Hủy
           </button>
           <button
             onClick={handleConfirm}
             disabled={isLoading || (!splitMode && !isValid) || (splitMode && splitPaid < totalAmount)}
             className="flex-1 py-3 bg-[#FF6B35] text-white rounded-xl font-bold hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isLoading ? 'Dang xu ly...' : 'Xac nhan thanh toan'}
+            {isLoading ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
           </button>
         </div>
       </div>

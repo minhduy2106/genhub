@@ -6,7 +6,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { PaginationDto, paginate } from '../../common/dto/pagination.dto';
-import { generateOrderCode } from '../../common/utils/generate-code.util';
+import {
+  generateOrderCode,
+  generateCustomerCode,
+} from '../../common/utils/generate-code.util';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -53,6 +56,29 @@ export class OrdersService {
     dto: CreatePosOrderDto,
   ) {
     return this.prisma.$transaction(async (tx) => {
+      // 0. Auto-create customer nếu không có customerId nhưng có customerName/customerPhone
+      let resolvedCustomerId = dto.customerId ?? null;
+      if (!resolvedCustomerId && dto.customerName && dto.customerPhone) {
+        const existing = await tx.customer.findFirst({
+          where: { storeId, phone: dto.customerPhone, deletedAt: null },
+        });
+        if (existing) {
+          resolvedCustomerId = existing.id;
+        } else {
+          const customerCount = await tx.customer.count({ where: { storeId } });
+          const code = generateCustomerCode(customerCount + 1);
+          const newCustomer = await tx.customer.create({
+            data: {
+              storeId,
+              code,
+              fullName: dto.customerName,
+              phone: dto.customerPhone,
+            },
+          });
+          resolvedCustomerId = newCustomer.id;
+        }
+      }
+
       // 1. Sinh mã đơn
       const store = await tx.store.update({
         where: { id: storeId },
@@ -148,6 +174,11 @@ export class OrdersService {
 
       const orderDiscount = dto.discountAmount ?? 0;
       const totalAmount = subtotal - orderDiscount;
+      if (totalAmount < 0) {
+        throw new BadRequestException(
+          'Giảm giá không thể lớn hơn tổng đơn hàng',
+        );
+      }
       const paidAmount = dto.payments.reduce((s, p) => s + p.amount, 0);
 
       // 3. Tạo order
@@ -155,7 +186,7 @@ export class OrdersService {
         data: {
           storeId,
           code,
-          customerId: dto.customerId,
+          customerId: resolvedCustomerId,
           channel: 'pos',
           status: 'completed',
           subtotal,
@@ -205,9 +236,9 @@ export class OrdersService {
       }
 
       // 5. Cập nhật customer stats
-      if (dto.customerId) {
+      if (resolvedCustomerId) {
         await tx.customer.update({
-          where: { id: dto.customerId },
+          where: { id: resolvedCustomerId },
           data: {
             totalOrders: { increment: 1 },
             totalSpent: { increment: totalAmount },
@@ -239,6 +270,17 @@ export class OrdersService {
             variantId: item.variantId ?? null,
           },
           data: { quantity: { increment: item.quantity } },
+        });
+      }
+
+      // Hoàn customer stats
+      if (order.customerId) {
+        await tx.customer.update({
+          where: { id: order.customerId },
+          data: {
+            totalOrders: { decrement: 1 },
+            totalSpent: { decrement: order.totalAmount },
+          },
         });
       }
 

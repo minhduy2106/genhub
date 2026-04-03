@@ -211,7 +211,9 @@ export class AuthService {
 
   async refreshToken(token: string) {
     try {
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<{ sub: string; type: string }>(
+        token,
+      );
 
       if (payload.type !== 'refresh') {
         throw new UnauthorizedException('Token không hợp lệ');
@@ -228,7 +230,9 @@ export class AuthService {
       });
 
       if (!user || !user.isActive || user.deletedAt) {
-        throw new UnauthorizedException('Người dùng không tồn tại hoặc đã bị vô hiệu hóa');
+        throw new UnauthorizedException(
+          'Người dùng không tồn tại hoặc đã bị vô hiệu hóa',
+        );
       }
 
       const permissions = user.role.permissions.map((rp) => rp.permission.slug);
@@ -246,7 +250,9 @@ export class AuthService {
       return { accessToken };
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
-      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+      throw new UnauthorizedException(
+        'Refresh token không hợp lệ hoặc đã hết hạn',
+      );
     }
   }
 

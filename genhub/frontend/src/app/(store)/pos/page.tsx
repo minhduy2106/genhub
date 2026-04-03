@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, ShoppingCart, X, User, Loader2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, X, User, Loader2, UserPlus } from 'lucide-react';
 import { useCartStore } from '@/lib/stores/cart.store';
 import { formatCurrency } from '@/lib/utils/format';
 import { apiFetch } from '@/lib/api';
@@ -50,6 +50,125 @@ function getImage(product: Product): string | null {
   return product.images?.[0]?.url ?? null;
 }
 
+/* ---------- Quick Create Customer Modal ---------- */
+interface CreateCustomerModalProps {
+  initialName?: string;
+  onClose: () => void;
+  onCreated: (customer: Customer) => void;
+}
+
+function CreateCustomerModal({ initialName = '', onClose, onCreated }: CreateCustomerModalProps) {
+  const [fullName, setFullName] = useState(initialName);
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !phone.trim()) {
+      toast.error('Vui lòng nhập họ tên và số điện thoại');
+      return;
+    }
+    setLoading(true);
+    try {
+      const customer = await apiFetch<Customer>('/customers', {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: fullName.trim(),
+          phone: phone.trim(),
+          email: email.trim() || undefined,
+          address: address.trim() || undefined,
+        }),
+      });
+      toast.success(`Đã thêm khách hàng: ${customer.fullName}`);
+      onCreated(customer);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể tạo khách hàng');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-bold text-lg">Thêm khách hàng mới</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Họ tên <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Nhập họ tên khách hàng"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Số điện thoại <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Nhập số điện thoại"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Nhập email (tùy chọn)"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Địa chỉ</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Nhập địa chỉ (tùy chọn)"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              Thêm khách hàng
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 export default function PosPage() {
   const [search, setSearch] = useState('');
@@ -64,7 +183,9 @@ export default function PosPage() {
   // Customer search
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [customerSearched, setCustomerSearched] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const customerRef = useRef<HTMLDivElement>(null);
 
   // Payment & Receipt
@@ -82,13 +203,12 @@ export default function PosPage() {
           apiFetch<{ data: Product[] }>('/products?limit=50&status=active'),
           apiFetch<Category[]>('/categories'),
         ]);
-        // prodRes may be paginated { data, meta } or just an array
         const prodList = Array.isArray(prodRes) ? prodRes : prodRes.data ?? [];
         const catList = Array.isArray(catRes) ? catRes : [];
         setProducts(prodList);
         setCategories(catList);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Khong the tai du lieu');
+        toast.error(err instanceof Error ? err.message : 'Không thể tải dữ liệu');
       } finally {
         setLoadingProducts(false);
       }
@@ -127,15 +247,24 @@ export default function PosPage() {
   useEffect(() => {
     if (!customerSearch.trim()) {
       setCustomerResults([]);
+      setCustomerSearched(false);
+      setShowCustomerDropdown(false);
       return;
     }
+    setCustomerSearched(false);
     const timer = setTimeout(async () => {
       try {
-        const results = await apiFetch<Customer[]>(`/customers/search?q=${encodeURIComponent(customerSearch.trim())}`);
-        setCustomerResults(Array.isArray(results) ? results : []);
+        const results = await apiFetch<Customer[]>(
+          `/customers/search?q=${encodeURIComponent(customerSearch.trim())}`,
+        );
+        const list = Array.isArray(results) ? results : [];
+        setCustomerResults(list);
+        setCustomerSearched(true);
         setShowCustomerDropdown(true);
       } catch {
         setCustomerResults([]);
+        setCustomerSearched(true);
+        setShowCustomerDropdown(true);
       }
     }, 400);
     return () => clearTimeout(timer);
@@ -172,13 +301,21 @@ export default function PosPage() {
 
   /* ---------- Select customer ---------- */
   const selectCustomer = (customer: Customer) => {
-    cart.setCustomer(customer.id, customer.fullName);
+    cart.setCustomer(customer.id, customer.fullName, customer.phone ?? null);
     setCustomerSearch('');
     setShowCustomerDropdown(false);
+    setCustomerSearched(false);
   };
 
   const clearCustomer = () => {
-    cart.setCustomer(null, null);
+    cart.setCustomer(null, null, null);
+  };
+
+  /* ---------- Handle new customer created ---------- */
+  const handleCustomerCreated = (customer: Customer) => {
+    setShowCreateCustomer(false);
+    setCustomerSearch('');
+    selectCustomer(customer);
   };
 
   /* ---------- Payment flow ---------- */
@@ -199,6 +336,8 @@ export default function PosPage() {
         })),
         payments,
         customerId: cart.customerId ?? undefined,
+        customerName: !cart.customerId && cart.customerName ? cart.customerName : undefined,
+        customerPhone: !cart.customerId && cart.customerPhone ? cart.customerPhone : undefined,
         discountAmount: cart.discount || 0,
         discountType: 'fixed' as const,
       };
@@ -224,13 +363,14 @@ export default function PosPage() {
         payments,
         changeAmount: result.changeAmount,
         customerName: cart.customerName,
+        customerPhone: cart.customerPhone,
       };
 
       setShowPaymentModal(false);
       setReceiptData(receipt);
-      toast.success(`Thanh toan thanh cong: ${result.order.code}`);
+      toast.success(`Thanh toán thành công: ${result.order.code}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Thanh toan that bai');
+      toast.error(err instanceof Error ? err.message : 'Thanh toán thất bại');
     } finally {
       setPaymentLoading(false);
     }
@@ -254,7 +394,7 @@ export default function PosPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Tim san pham, ma SKU, barcode..."
+              placeholder="Tìm sản phẩm, mã SKU, barcode..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border rounded-xl bg-white focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
@@ -269,7 +409,7 @@ export default function PosPage() {
                 !activeCategory ? 'bg-[#FF6B35] text-white' : 'bg-white text-gray-600 border'
               }`}
             >
-              Tat ca
+              Tất cả
             </button>
             {categories.map((cat) => (
               <button
@@ -292,7 +432,7 @@ export default function PosPage() {
               </div>
             ) : filteredProducts.length === 0 ? (
               <div className="col-span-full text-center py-12 text-gray-400">
-                Khong tim thay san pham
+                Không tìm thấy sản phẩm
               </div>
             ) : (
               filteredProducts.map((product) => (
@@ -332,9 +472,13 @@ export default function PosPage() {
         </div>
 
         {/* Cart Panel */}
-        <div className={`w-full lg:w-96 bg-white rounded-xl shadow-sm flex flex-col ${!showCart ? 'hidden lg:flex' : ''}`}>
+        <div
+          className={`w-full lg:w-96 bg-white rounded-xl shadow-sm flex flex-col ${
+            !showCart ? 'hidden lg:flex' : ''
+          }`}
+        >
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-bold">Gio hang ({cart.items.length})</h2>
+            <h2 className="font-bold">Giỏ hàng ({cart.items.length})</h2>
             <button onClick={() => setShowCart(false)} className="lg:hidden p-1">
               <X className="h-5 w-5" />
             </button>
@@ -345,8 +489,13 @@ export default function PosPage() {
             {cart.customerName ? (
               <div className="flex items-center justify-between p-2 bg-blue-50 rounded-lg text-sm">
                 <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-blue-600" />
-                  <span className="font-medium text-blue-700">{cart.customerName}</span>
+                  <User className="h-4 w-4 text-blue-600 shrink-0" />
+                  <div>
+                    <p className="font-medium text-blue-700">{cart.customerName}</p>
+                    {cart.customerPhone && (
+                      <p className="text-xs text-blue-500">{cart.customerPhone}</p>
+                    )}
+                  </div>
                 </div>
                 <button onClick={clearCustomer} className="text-blue-400 hover:text-blue-600">
                   <X className="h-4 w-4" />
@@ -357,24 +506,45 @@ export default function PosPage() {
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Tim khach hang..."
+                  placeholder="Tìm khách hàng..."
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
-                  onFocus={() => customerResults.length > 0 && setShowCustomerDropdown(true)}
+                  onFocus={() =>
+                    (customerResults.length > 0 || customerSearched) &&
+                    setShowCustomerDropdown(true)
+                  }
                   className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
                 />
-                {showCustomerDropdown && customerResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
-                    {customerResults.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => selectCustomer(c)}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
-                      >
-                        <span className="font-medium">{c.fullName}</span>
-                        {c.phone && <span className="text-gray-400 text-xs">{c.phone}</span>}
-                      </button>
-                    ))}
+                {showCustomerDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 max-h-56 overflow-y-auto">
+                    {customerResults.length > 0 ? (
+                      customerResults.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => selectCustomer(c)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium">{c.fullName}</span>
+                          {c.phone && <span className="text-gray-400 text-xs">{c.phone}</span>}
+                        </button>
+                      ))
+                    ) : customerSearched ? (
+                      <div className="p-3">
+                        <p className="text-sm text-gray-500 mb-2">
+                          Không tìm thấy &ldquo;{customerSearch}&rdquo;
+                        </p>
+                        <button
+                          onClick={() => {
+                            setShowCustomerDropdown(false);
+                            setShowCreateCustomer(true);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#FF6B35] text-white rounded-lg text-sm hover:bg-[#E55A2B]"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          Thêm khách hàng mới
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -383,24 +553,31 @@ export default function PosPage() {
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {cart.items.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">Gio hang trong</p>
+              <p className="text-center text-gray-400 py-8">Giỏ hàng trống</p>
             ) : (
               cart.items.map((item) => (
-                <div key={`${item.productId}-${item.variantId ?? 'default'}`} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                <div
+                  key={`${item.productId}-${item.variantId ?? 'default'}`}
+                  className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
+                >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{item.name}</p>
                     <p className="text-sm text-[#FF6B35]">{formatCurrency(item.price)}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
-                      onClick={() => cart.updateQuantity(item.productId, item.quantity - 1, item.variantId)}
+                      onClick={() =>
+                        cart.updateQuantity(item.productId, item.quantity - 1, item.variantId)
+                      }
                       className="p-1 rounded hover:bg-gray-200"
                     >
                       <Minus className="h-3 w-3" />
                     </button>
                     <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                     <button
-                      onClick={() => cart.updateQuantity(item.productId, item.quantity + 1, item.variantId)}
+                      onClick={() =>
+                        cart.updateQuantity(item.productId, item.quantity + 1, item.variantId)
+                      }
                       className="p-1 rounded hover:bg-gray-200"
                     >
                       <Plus className="h-3 w-3" />
@@ -420,15 +597,15 @@ export default function PosPage() {
           {/* Totals & Payment */}
           <div className="p-4 border-t space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Tam tinh</span>
+              <span className="text-gray-500">Tạm tính</span>
               <span className="font-medium">{formatCurrency(cart.subtotal())}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Giam gia</span>
+              <span className="text-gray-500">Giảm giá</span>
               <span className="font-medium">{formatCurrency(cart.discount)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold border-t pt-3">
-              <span>Tong cong</span>
+              <span>Tổng cộng</span>
               <span className="text-[#FF6B35]">{formatCurrency(cart.total())}</span>
             </div>
             <button
@@ -436,7 +613,7 @@ export default function PosPage() {
               disabled={cart.items.length === 0}
               className="w-full py-3 bg-[#FF6B35] text-white rounded-xl font-bold text-lg hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Thanh toan
+              Thanh toán
             </button>
           </div>
         </div>
@@ -458,6 +635,15 @@ export default function PosPage() {
           data={receiptData}
           onNewOrder={handleNewOrder}
           onClose={() => setReceiptData(null)}
+        />
+      )}
+
+      {/* Quick Create Customer Modal */}
+      {showCreateCustomer && (
+        <CreateCustomerModal
+          initialName={customerSearch}
+          onClose={() => setShowCreateCustomer(false)}
+          onCreated={handleCustomerCreated}
         />
       )}
     </>

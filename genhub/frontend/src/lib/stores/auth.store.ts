@@ -64,7 +64,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = json.data ?? json;
       set({ user, accessToken: token, isAuthenticated: true, isRehydrating: false });
     } catch {
-      set({ isRehydrating: false });
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
+      set({ user: null, accessToken: null, isAuthenticated: false, isRehydrating: false });
     }
   },
 }));

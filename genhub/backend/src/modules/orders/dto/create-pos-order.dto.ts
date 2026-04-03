@@ -15,7 +15,7 @@ export class PosOrderItemDto {
   @IsUUID() productId: string;
   @IsOptional() @IsUUID() variantId?: string;
   @IsInt() @Min(1) quantity: number;
-  @IsNumber() unitPrice: number;
+  @IsNumber() @Min(0) unitPrice: number;
   @IsOptional() @IsNumber() discountAmount?: number;
 }
 
@@ -26,6 +26,9 @@ export class PosPaymentDto {
 
 export class CreatePosOrderDto {
   @IsOptional() @IsUUID() customerId?: string;
+
+  @IsOptional() @IsNotEmpty() @IsString() customerName?: string;
+  @IsOptional() @IsNotEmpty() @IsString() customerPhone?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
