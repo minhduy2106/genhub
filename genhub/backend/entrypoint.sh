@@ -21,4 +21,4 @@ echo "Running seed (if needed)..."
 npx prisma db seed 2>/dev/null || echo "Seed skipped or already seeded"
 
 echo "Starting GenHub API..."
-exec node dist/main.js
+exec node dist/src/main.js
