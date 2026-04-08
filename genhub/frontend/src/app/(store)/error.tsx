@@ -5,10 +5,10 @@ import { AlertTriangle } from 'lucide-react';
 
 export default function StoreError({
   error,
-  unstable_retry,
+  reset,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  reset: () => void;
 }) {
   useEffect(() => {
     console.error('Store error:', error);
@@ -23,7 +23,7 @@ export default function StoreError({
           Hệ thống gặp sự cố không mong muốn. Vui lòng thử lại hoặc liên hệ hỗ trợ.
         </p>
         <button
-          onClick={() => unstable_retry()}
+          onClick={() => reset()}
           className="bg-[#FF6B35] text-white px-6 py-2 rounded-lg hover:bg-[#E55A2B] transition-colors"
         >
           Thử lại

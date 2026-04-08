@@ -8,7 +8,6 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { CustomersService } from './customers.service';
 import { CustomerQueryDto } from './dto/customer-query.dto';
 import {
@@ -28,6 +27,7 @@ export class CustomersController {
   }
 
   @Get('search')
+  @RequirePermissions('customers:view')
   search(@CurrentUser() user: JwtPayload, @Query('q') q: string) {
     return this.service.search(user.storeId, q ?? '');
   }
@@ -49,11 +49,13 @@ export class CustomersController {
   }
 
   @Get(':id')
+  @RequirePermissions('customers:view')
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.service.findOne(id, user.storeId);
   }
 
   @Get(':id/orders')
+  @RequirePermissions('customers:view')
   getOrders(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.service.getOrders(id, user.storeId);
   }
@@ -63,7 +65,15 @@ export class CustomersController {
   update(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
-    @Body() body: Prisma.CustomerUpdateInput,
+    @Body()
+    body: {
+      fullName?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      notes?: string;
+      isActive?: boolean;
+    },
   ) {
     return this.service.update(id, user.storeId, body);
   }

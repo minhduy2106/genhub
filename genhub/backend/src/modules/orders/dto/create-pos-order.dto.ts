@@ -5,6 +5,7 @@ import {
   IsUUID,
   IsNumber,
   IsArray,
+  ArrayMinSize,
   ValidateNested,
   IsInt,
   Min,
@@ -31,11 +32,13 @@ export class CreatePosOrderDto {
   @IsOptional() @IsNotEmpty() @IsString() customerPhone?: string;
 
   @IsArray()
+  @ArrayMinSize(1, { message: 'Đơn hàng phải có ít nhất 1 sản phẩm' })
   @ValidateNested({ each: true })
   @Type(() => PosOrderItemDto)
   items: PosOrderItemDto[];
 
   @IsArray()
+  @ArrayMinSize(1, { message: 'Cần có ít nhất 1 phương thức thanh toán' })
   @ValidateNested({ each: true })
   @Type(() => PosPaymentDto)
   payments: PosPaymentDto[];
@@ -44,5 +47,4 @@ export class CreatePosOrderDto {
   @IsOptional() @IsString() discountType?: string;
   @IsOptional() @IsString() couponCode?: string;
   @IsOptional() @IsString() customerNote?: string;
-  @IsOptional() @IsUUID() shiftId?: string;
 }

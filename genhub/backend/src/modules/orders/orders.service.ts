@@ -7,10 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreatePosOrderDto } from './dto/create-pos-order.dto';
 import { paginate } from '../../common/dto/pagination.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
-import {
-  generateOrderCode,
-  generateCustomerCode,
-} from '../../common/utils/generate-code.util';
+import { generateOrderCode } from '../../common/utils/generate-code.util';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -61,6 +58,15 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       // 0. Auto-create customer nếu không có customerId nhưng có customerName/customerPhone
       let resolvedCustomerId = dto.customerId ?? null;
+      if (resolvedCustomerId) {
+        const customer = await tx.customer.findFirst({
+          where: { id: resolvedCustomerId, storeId, deletedAt: null },
+        });
+        if (!customer) {
+          throw new BadRequestException('Khách hàng không tồn tại');
+        }
+      }
+
       if (!resolvedCustomerId && dto.customerName && dto.customerPhone) {
         const existing = await tx.customer.findFirst({
           where: { storeId, phone: dto.customerPhone, deletedAt: null },
@@ -68,8 +74,11 @@ export class OrdersService {
         if (existing) {
           resolvedCustomerId = existing.id;
         } else {
-          const customerCount = await tx.customer.count({ where: { storeId } });
-          const code = generateCustomerCode(customerCount + 1);
+          const code = `KH${Date.now().toString().slice(-6)}${Math.floor(
+            Math.random() * 100,
+          )
+            .toString()
+            .padStart(2, '0')}`;
           const newCustomer = await tx.customer.create({
             data: {
               storeId,
@@ -116,6 +125,23 @@ export class OrdersService {
           throw new BadRequestException(`Sản phẩm không tồn tại`);
         }
 
+        const variant = item.variantId
+          ? await tx.productVariant.findFirst({
+              where: {
+                id: item.variantId,
+                productId: product.id,
+                storeId,
+                isActive: true,
+              },
+            })
+          : null;
+
+        if (item.variantId && !variant) {
+          throw new BadRequestException(
+            `Biến thể của sản phẩm "${product.name}" không tồn tại`,
+          );
+        }
+
         // Trừ tồn kho (optimistic locking)
         const inv = await tx.inventory.findFirst({
           where: {
@@ -124,9 +150,14 @@ export class OrdersService {
             variantId: item.variantId ?? null,
           },
         });
-        if (!inv || inv.quantity < item.quantity) {
+        if (!inv || inv.quantity <= 0) {
           throw new BadRequestException(
-            `Sản phẩm "${product.name}" không đủ tồn kho`,
+            `Sản phẩm "${product.name}" đã hết hàng`,
+          );
+        }
+        if (inv.quantity < item.quantity) {
+          throw new BadRequestException(
+            `Sản phẩm "${product.name}" chỉ còn ${inv.quantity} món`,
           );
         }
 
@@ -159,16 +190,27 @@ export class OrdersService {
           unitCost: product.costPrice,
         });
 
+        const rawUnitPrice = variant?.price ?? product.price;
+        if (rawUnitPrice === null || rawUnitPrice === undefined) {
+          throw new BadRequestException(
+            `Sản phẩm "${product.name}" chưa có giá bán`,
+          );
+        }
+        const serverUnitPrice = Number(rawUnitPrice);
+
         const discount = item.discountAmount ?? 0;
-        const lineTotal = item.unitPrice * item.quantity - discount;
+        const lineTotal = serverUnitPrice * item.quantity - discount;
         subtotal += lineTotal;
 
         orderItems.push({
           productId: item.productId,
           variantId: item.variantId,
-          productSnapshot: { name: product.name, sku: product.sku },
-          unitPrice: item.unitPrice,
-          unitCost: product.costPrice,
+          productSnapshot: {
+            name: variant ? `${product.name} - ${variant.name}` : product.name,
+            sku: variant?.sku ?? product.sku,
+          },
+          unitPrice: serverUnitPrice,
+          unitCost: variant?.costPrice ?? product.costPrice,
           quantity: item.quantity,
           discountAmount: discount,
           lineTotal,
@@ -182,7 +224,15 @@ export class OrdersService {
           'Giảm giá không thể lớn hơn tổng đơn hàng',
         );
       }
+      if (!dto.payments || dto.payments.length === 0) {
+        throw new BadRequestException(
+          'Cần có ít nhất một phương thức thanh toán',
+        );
+      }
       const paidAmount = dto.payments.reduce((s, p) => s + p.amount, 0);
+      if (paidAmount < totalAmount) {
+        throw new BadRequestException('Số tiền thanh toán không đủ');
+      }
 
       // 3. Tạo order
       const order = await tx.order.create({
@@ -250,9 +300,16 @@ export class OrdersService {
         });
       }
 
+      const cashPaid = dto.payments
+        .filter((payment) => payment.method === 'cash')
+        .reduce((sum, payment) => sum + payment.amount, 0);
+      const nonCashPaid = paidAmount - cashPaid;
+      const cashRequired = Math.max(0, totalAmount - nonCashPaid);
+      const changeAmount = Math.max(0, cashPaid - cashRequired);
+
       return {
         order: { id: order.id, code, totalAmount, status: 'completed' },
-        changeAmount: paidAmount - totalAmount,
+        changeAmount,
       };
     });
   }
@@ -261,6 +318,9 @@ export class OrdersService {
     const order = await this.findOne(id, storeId);
     if (order.status === 'cancelled') {
       throw new BadRequestException('Đơn hàng đã bị hủy');
+    }
+    if (order.status === 'completed') {
+      throw new BadRequestException('Không thể hủy đơn hàng đã hoàn thành');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -272,14 +332,17 @@ export class OrdersService {
             productId: item.productId,
             variantId: item.variantId ?? null,
           },
-          data: { quantity: { increment: item.quantity } },
+          data: {
+            quantity: { increment: item.quantity },
+            version: { increment: 1 },
+          },
         });
       }
 
       // Hoàn customer stats
       if (order.customerId) {
-        await tx.customer.update({
-          where: { id: order.customerId },
+        await tx.customer.updateMany({
+          where: { id: order.customerId, storeId, totalOrders: { gt: 0 } },
           data: {
             totalOrders: { decrement: 1 },
             totalSpent: { decrement: order.totalAmount },
@@ -303,6 +366,34 @@ export class OrdersService {
     return this.prisma.order.update({
       where: { id },
       data: { status: 'completed', completedAt: new Date() },
+    });
+  }
+
+  async update(
+    id: string,
+    storeId: string,
+    data: {
+      customerNote?: string;
+      internalNote?: string;
+    },
+  ) {
+    await this.findOne(id, storeId);
+
+    return this.prisma.order.update({
+      where: { id },
+      data: {
+        ...(data.customerNote !== undefined && {
+          customerNote: data.customerNote || null,
+        }),
+        ...(data.internalNote !== undefined && {
+          internalNote: data.internalNote || null,
+        }),
+      },
+      include: {
+        customer: true,
+        items: true,
+        payments: true,
+      },
     });
   }
 }

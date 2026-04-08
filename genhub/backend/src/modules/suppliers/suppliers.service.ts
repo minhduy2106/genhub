@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationDto, paginate } from '../../common/dto/pagination.dto';
 
@@ -44,7 +43,20 @@ export class SuppliersService {
     return s;
   }
 
-  async update(id: string, storeId: string, data: Prisma.SupplierUpdateInput) {
+  async update(
+    id: string,
+    storeId: string,
+    data: {
+      name?: string;
+      contactName?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      taxCode?: string;
+      notes?: string;
+      isActive?: boolean;
+    },
+  ) {
     await this.findOne(id, storeId);
     return this.prisma.supplier.update({ where: { id }, data });
   }

@@ -11,7 +11,7 @@ interface DashboardData {
   orders: { total: number };
   newCustomers: { total: number };
   lowStockCount: number;
-  revenueChart: { createdAt: string; _sum: { totalAmount: number } }[];
+  revenueChart: { date: string; revenue: number; orders: number }[];
   topProducts: {
     productId: string;
     _sum: { quantity: number; lineTotal: number };
@@ -114,8 +114,8 @@ export default function DashboardPage() {
 
   // Group revenue chart by date and sum
   const chartByDate = (dash.revenueChart ?? []).reduce<Record<string, number>>((acc, item) => {
-    const date = formatDate(item.createdAt);
-    acc[date] = (acc[date] ?? 0) + Number(item._sum?.totalAmount ?? 0);
+    const date = formatDate(item.date);
+    acc[date] = (acc[date] ?? 0) + Number(item.revenue ?? 0);
     return acc;
   }, {});
   const chartEntries = Object.entries(chartByDate);

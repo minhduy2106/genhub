@@ -46,6 +46,8 @@ interface Order {
   totalAmount: number | string;
   paidAmount: number | string;
   createdAt: string;
+  customerNote?: string | null;
+  internalNote?: string | null;
   customer?: Customer;
   items: OrderItem[];
   payments: Payment[];
@@ -69,6 +71,8 @@ export default function OrdersPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelInput, setShowCancelInput] = useState(false);
+  const [customerNote, setCustomerNote] = useState('');
+  const [internalNote, setInternalNote] = useState('');
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -134,12 +138,38 @@ export default function OrdersPage() {
     setSelectedOrder(order);
     setShowCancelInput(false);
     setCancelReason('');
+    setCustomerNote(order.customerNote ?? '');
+    setInternalNote(order.internalNote ?? '');
   };
 
   const closeModal = () => {
     setSelectedOrder(null);
     setShowCancelInput(false);
     setCancelReason('');
+    setCustomerNote('');
+    setInternalNote('');
+  };
+
+  const handleSaveOrder = async () => {
+    if (!selectedOrder) return;
+
+    setActionLoading(true);
+    try {
+      const updated = await apiFetch<Order>(`/orders/${selectedOrder.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          customerNote,
+          internalNote,
+        }),
+      });
+      setSelectedOrder(updated);
+      toast.success('Đã cập nhật đơn hàng');
+      fetchOrders();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể cập nhật đơn hàng');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   return (
@@ -315,6 +345,36 @@ export default function OrdersPage() {
               {/* Date */}
               <div className="text-xs text-gray-400">
                 Tạo lúc: {formatDateTime(selectedOrder.createdAt)}
+              </div>
+
+              <div className="grid gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú khách hàng</label>
+                  <textarea
+                    value={customerNote}
+                    onChange={(e) => setCustomerNote(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+                    placeholder="Ví dụ: giao nhanh, gọi trước khi giao..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú nội bộ</label>
+                  <textarea
+                    value={internalNote}
+                    onChange={(e) => setInternalNote(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
+                    placeholder="Ghi chú xử lý đơn hàng..."
+                  />
+                </div>
+                <button
+                  onClick={handleSaveOrder}
+                  disabled={actionLoading}
+                  className="py-2.5 bg-gray-900 text-white rounded-lg text-sm font-semibold hover:bg-black transition-colors disabled:opacity-50"
+                >
+                  Lưu chỉnh sửa đơn hàng
+                </button>
               </div>
 
               {/* Cancel reason input */}

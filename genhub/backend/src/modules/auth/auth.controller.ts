@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Patch } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -48,5 +48,24 @@ export class AuthController {
   @Get('me')
   getMe(@CurrentUser() user: JwtPayload) {
     return this.authService.getMe(user.sub);
+  }
+
+  @Get('store')
+  getStore(@CurrentUser() user: JwtPayload) {
+    return this.authService.getStore(user.storeId);
+  }
+
+  @Patch('store')
+  updateStore(
+    @CurrentUser() user: JwtPayload,
+    @Body()
+    body: {
+      name?: string;
+      phone?: string;
+      address?: string;
+      settings?: Record<string, unknown>;
+    },
+  ) {
+    return this.authService.updateStore(user.storeId, body);
   }
 }

@@ -28,7 +28,7 @@ export class ReportsController {
 
   @Get('products')
   @RequirePermissions('reports:view')
-  topProducts(@CurrentUser() user: JwtPayload, @Query('limit') limit?: number) {
-    return this.service.topProducts(user.storeId, limit ?? 10);
+  topProducts(@CurrentUser() user: JwtPayload, @Query('limit') limit?: string) {
+    return this.service.topProducts(user.storeId, limit ? Number(limit) : 10);
   }
 }

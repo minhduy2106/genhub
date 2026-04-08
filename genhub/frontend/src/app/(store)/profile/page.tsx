@@ -3,8 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { User, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/auth.store';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+import { apiFetch } from '@/lib/api';
 
 const roleLabels: Record<string, string> = {
   OWNER: 'Chủ cửa hàng',
@@ -14,7 +13,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export default function ProfilePage() {
-  const { user, accessToken } = useAuthStore();
+  const { user } = useAuthStore();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,25 +31,17 @@ export default function ProfilePage() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/change-password`, {
+      await apiFetch('/auth/change-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      if (!res.ok) {
-        const json = await res.json();
-        toast.error(json.message || 'Đổi mật khẩu thất bại!');
-        return;
-      }
       toast.success('Đổi mật khẩu thành công!');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch {
-      toast.error('Không thể kết nối đến server.');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Đổi mật khẩu thất bại!';
+      toast.error(message);
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ export class RedisService implements OnModuleDestroy {
 
   constructor() {
     this.client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
+    this.client.on('error', (err) => console.error('Redis client error:', err));
   }
 
   async get(key: string): Promise<string | null> {
@@ -26,7 +27,19 @@ export class RedisService implements OnModuleDestroy {
   }
 
   async delByPattern(pattern: string): Promise<void> {
-    const keys = await this.client.keys(pattern);
+    const keys: string[] = [];
+    let cursor = '0';
+    do {
+      const [nextCursor, batch] = await this.client.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      );
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
     if (keys.length > 0) {
       await this.client.del(...keys);
     }

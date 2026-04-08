@@ -11,8 +11,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((s) => s.setAuth);
-  const [email, setEmail] = useState('lan@genhub.vn');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -112,9 +112,6 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        <p className="text-center text-xs text-gray-400 mt-3">
-          Demo: lan@genhub.vn / 123456
-        </p>
       </div>
     </div>
   );

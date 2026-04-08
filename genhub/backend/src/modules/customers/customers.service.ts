@@ -57,7 +57,18 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: string, storeId: string, data: Prisma.CustomerUpdateInput) {
+  async update(
+    id: string,
+    storeId: string,
+    data: {
+      fullName?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      notes?: string;
+      isActive?: boolean;
+    },
+  ) {
     await this.findOne(id, storeId);
     return this.prisma.customer.update({ where: { id }, data });
   }

@@ -19,15 +19,3 @@ export const PAYMENT_METHODS = {
   credit_card: 'Thẻ tín dụng',
 } as const;
 
-export const MENU_ITEMS = [
-  { label: 'Tổng quan', href: '/dashboard', icon: 'LayoutDashboard' },
-  { label: 'Bán hàng', href: '/pos', icon: 'ShoppingCart' },
-  { label: 'Sản phẩm', href: '/products', icon: 'Package' },
-  { label: 'Đơn hàng', href: '/orders', icon: 'ClipboardList' },
-  { label: 'Kho hàng', href: '/inventory', icon: 'Warehouse' },
-  { label: 'Khách hàng', href: '/customers', icon: 'Users' },
-  { label: 'Báo cáo', href: '/reports', icon: 'BarChart3' },
-  { label: 'Nhà cung cấp', href: '/suppliers', icon: 'Truck' },
-  { label: 'Nhân viên', href: '/staff', icon: 'UserCog' },
-  { label: 'Cài đặt', href: '/settings', icon: 'Settings' },
-] as const;

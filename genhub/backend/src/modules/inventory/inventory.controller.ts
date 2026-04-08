@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { PurchaseDto } from './dto/purchase.dto';
+import { AdjustmentDto } from './dto/adjustment.dto';
 import {
   CurrentUser,
   JwtPayload,
@@ -25,46 +27,25 @@ export class InventoryController {
 
   @Post('purchase')
   @RequirePermissions('inventory:purchase')
-  purchase(
-    @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      items: {
-        productId: string;
-        variantId?: string;
-        quantity: number;
-        unitCost: number;
-      }[];
-      supplierId?: string;
-    },
-  ) {
+  purchase(@CurrentUser() user: JwtPayload, @Body() dto: PurchaseDto) {
     return this.service.purchase(
       user.storeId,
       user.sub,
-      body.items,
-      body.supplierId,
+      dto.items,
+      dto.supplierId,
     );
   }
 
   @Post('adjustment')
   @RequirePermissions('inventory:adjust')
-  adjustment(
-    @CurrentUser() user: JwtPayload,
-    @Body()
-    body: {
-      productId: string;
-      variantId?: string;
-      newQuantity: number;
-      notes?: string;
-    },
-  ) {
+  adjustment(@CurrentUser() user: JwtPayload, @Body() dto: AdjustmentDto) {
     return this.service.adjustment(
       user.storeId,
       user.sub,
-      body.productId,
-      body.variantId,
-      body.newQuantity,
-      body.notes,
+      dto.productId,
+      dto.variantId,
+      dto.newQuantity,
+      dto.notes,
     );
   }
 

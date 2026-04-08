@@ -20,6 +20,7 @@ export class CategoriesController {
   constructor(private service: CategoriesService) {}
 
   @Get()
+  @RequirePermissions('products:view')
   findAll(@CurrentUser() user: JwtPayload) {
     return this.service.findAll(user.storeId);
   }
@@ -31,6 +32,7 @@ export class CategoriesController {
   }
 
   @Get(':id')
+  @RequirePermissions('products:view')
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.service.findOne(id, user.storeId);
   }

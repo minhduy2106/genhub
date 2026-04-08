@@ -8,6 +8,7 @@ interface CartItem {
   price: number;
   quantity: number;
   image?: string | null;
+  stock: number;
 }
 
 interface CartState {
@@ -39,10 +40,13 @@ export const useCartStore = create<CartState>((set, get) => ({
         (i) => i.productId === item.productId && i.variantId === item.variantId,
       );
       if (existing) {
+        if (existing.quantity >= existing.stock) {
+          return state;
+        }
         return {
           items: state.items.map((i) =>
             i.productId === item.productId && i.variantId === item.variantId
-              ? { ...i, quantity: i.quantity + 1 }
+              ? { ...i, quantity: Math.min(i.quantity + 1, i.stock) }
               : i,
           ),
         };
@@ -63,7 +67,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         ? state.items.filter((i) => !(i.productId === productId && i.variantId === variantId))
         : state.items.map((i) =>
             i.productId === productId && i.variantId === variantId
-              ? { ...i, quantity }
+              ? { ...i, quantity: Math.min(quantity, i.stock) }
               : i,
           ),
     })),
@@ -72,5 +76,5 @@ export const useCartStore = create<CartState>((set, get) => ({
   setDiscount: (amount) => set({ discount: amount }),
   clear: () => set({ items: [], customerId: null, customerName: null, customerPhone: null, discount: 0 }),
   subtotal: () => get().items.reduce((s, i) => s + i.price * i.quantity, 0),
-  total: () => get().subtotal() - get().discount,
+  total: () => Math.max(0, get().subtotal() - get().discount),
 }));

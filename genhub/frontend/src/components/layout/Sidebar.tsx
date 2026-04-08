@@ -6,6 +6,7 @@ import {
   Warehouse, Users, BarChart3, Settings, ChevronLeft, Store,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuthStore } from '@/lib/stores/auth.store';
 
 const iconMap: Record<string, React.ElementType> = {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
@@ -26,6 +27,7 @@ const menuItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { user } = useAuthStore();
 
   return (
     <aside
@@ -68,8 +70,8 @@ export function Sidebar() {
 
       {!collapsed && (
         <div className="p-4 border-t border-white/10">
-          <p className="text-xs text-gray-500">Cửa hàng Thời Trang Lan</p>
-          <p className="text-xs text-gray-600">Gói: Miễn phí</p>
+          <p className="text-xs text-gray-500">{user?.store?.name ?? 'Cửa hàng'}</p>
+          <p className="text-xs text-gray-600">Gói: {user?.store?.plan ?? 'Miễn phí'}</p>
         </div>
       )}
     </aside>

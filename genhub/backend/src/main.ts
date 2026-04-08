@@ -1,14 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import express from 'express';
 import helmet from 'helmet';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const uploadsDir = join(process.cwd(), 'uploads');
 
   app.use(helmet());
+  app.use('/uploads', express.static(uploadsDir));
   app.enableCors({
     origin: [
       'http://localhost:3000',

@@ -29,9 +29,6 @@ export function TopBar() {
 
   const handleLogout = () => {
     logout();
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
     router.push('/login');
   };
 
@@ -54,7 +51,6 @@ export function TopBar() {
       <div className="flex items-center gap-3">
         <button className="relative p-2 hover:bg-gray-100 rounded-lg">
           <Bell className="h-5 w-5 text-gray-600" />
-          <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full" />
         </button>
         <div className="relative pl-3 border-l" ref={dropdownRef}>
           <button

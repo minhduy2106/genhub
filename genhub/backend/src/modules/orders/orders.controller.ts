@@ -56,4 +56,18 @@ export class OrdersController {
   complete(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.service.complete(id, user.storeId);
   }
+
+  @Patch(':id')
+  @RequirePermissions('orders:update')
+  update(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @Body()
+    body: {
+      customerNote?: string;
+      internalNote?: string;
+    },
+  ) {
+    return this.service.update(id, user.storeId, body);
+  }
 }

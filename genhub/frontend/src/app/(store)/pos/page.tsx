@@ -282,15 +282,48 @@ export default function PosPage() {
   /* ---------- Add to cart ---------- */
   const handleAddToCart = useCallback(
     (product: Product) => {
+      const stock = getStock(product);
+      if (stock <= 0) {
+        toast.error(`Món "${product.name}" đã hết hàng`);
+        return;
+      }
+
+      const cartItem = cart.items.find((item) => item.productId === product.id);
+      if (cartItem && cartItem.quantity >= stock) {
+        toast.error(`Món "${product.name}" chỉ còn ${stock} sản phẩm`);
+        return;
+      }
+
       cart.addItem({
         productId: product.id,
         name: product.name,
         price: product.price,
         image: getImage(product),
+        stock,
       });
     },
     [cart],
   );
+
+  const handleCartQuantityChange = (
+    productId: string,
+    quantity: number,
+    variantId?: string,
+  ) => {
+    const cartItem = cart.items.find(
+      (item) => item.productId === productId && item.variantId === variantId,
+    );
+
+    if (!cartItem) return;
+
+    if (quantity > cartItem.stock) {
+      toast.error(`Món "${cartItem.name}" chỉ còn ${cartItem.stock} sản phẩm`);
+      cart.updateQuantity(productId, cartItem.stock, variantId);
+      return;
+    }
+
+    cart.updateQuantity(productId, quantity, variantId);
+  };
 
   /* ---------- Customer input handlers ---------- */
   const handleCustomerFocus = () => {
@@ -376,7 +409,7 @@ export default function PosPage() {
         })),
         subtotal: cart.subtotal(),
         discountAmount: cart.discount,
-        totalAmount: cart.total(),
+        totalAmount: result.order.totalAmount,
         payments,
         changeAmount: result.changeAmount,
         customerName: cart.customerName,
@@ -386,7 +419,9 @@ export default function PosPage() {
 
       setShowPaymentModal(false);
       setReceiptData(receipt);
-      toast.success(`Thanh toán thành công: ${result.order.code}`);
+      toast.success('Tạo đơn hàng thành công', {
+        description: `Mã đơn ${result.order.code} • ${formatCurrency(result.order.totalAmount)}`,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Thanh toán thất bại');
     } finally {
@@ -457,7 +492,8 @@ export default function PosPage() {
                 <button
                   key={product.id}
                   onClick={() => handleAddToCart(product)}
-                  className="bg-white rounded-xl p-3 text-left hover:ring-2 hover:ring-[#FF6B35] transition-all shadow-sm"
+                  disabled={getStock(product) <= 0}
+                  className="bg-white rounded-xl p-3 text-left hover:ring-2 hover:ring-[#FF6B35] transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center text-gray-300 overflow-hidden">
                     {getImage(product) ? (
@@ -469,7 +505,9 @@ export default function PosPage() {
                   <p className="text-sm font-medium truncate">{product.name}</p>
                   <p className="text-xs text-gray-500">{product.sku}</p>
                   <p className="text-sm font-bold text-[#FF6B35] mt-1">{formatCurrency(product.price)}</p>
-                  <p className="text-xs text-gray-400">Kho: {getStock(product)}</p>
+                  <p className={`text-xs ${getStock(product) > 0 ? 'text-gray-400' : 'text-red-500 font-medium'}`}>
+                    {getStock(product) > 0 ? `Kho: ${getStock(product)}` : 'Hết hàng'}
+                  </p>
                 </button>
               ))
             )}
@@ -671,7 +709,11 @@ export default function PosPage() {
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() =>
-                        cart.updateQuantity(item.productId, item.quantity - 1, item.variantId)
+                        handleCartQuantityChange(
+                          item.productId,
+                          item.quantity - 1,
+                          item.variantId,
+                        )
                       }
                       className="p-1 rounded hover:bg-gray-200"
                     >
@@ -680,7 +722,11 @@ export default function PosPage() {
                     <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
                     <button
                       onClick={() =>
-                        cart.updateQuantity(item.productId, item.quantity + 1, item.variantId)
+                        handleCartQuantityChange(
+                          item.productId,
+                          item.quantity + 1,
+                          item.variantId,
+                        )
                       }
                       className="p-1 rounded hover:bg-gray-200"
                     >

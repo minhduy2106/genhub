@@ -9,7 +9,7 @@ interface DashboardData {
   orders: { total: number };
   newCustomers: { total: number };
   lowStockCount: number;
-  revenueChart: { createdAt: string; _sum: { totalAmount: number } }[];
+  revenueChart: { date: string; revenue: number; orders: number }[];
   topProducts: {
     productId: string;
     _sum: { quantity: number; lineTotal: number };
@@ -59,10 +59,10 @@ export default function ReportsPage() {
   const orders = data.orders?.total ?? 0;
   const estimatedProfit = Math.round(revenue * 0.25);
 
-  // Group revenue chart by date and sum
+  // Build revenue chart from daily-aggregated data
   const chartByDate = (data.revenueChart ?? []).reduce<Record<string, number>>((acc, item) => {
-    const date = formatDate(item.createdAt);
-    acc[date] = (acc[date] ?? 0) + Number(item._sum?.totalAmount ?? 0);
+    const date = formatDate(item.date);
+    acc[date] = (acc[date] ?? 0) + Number(item.revenue ?? 0);
     return acc;
   }, {});
   const chartEntries = Object.entries(chartByDate);
@@ -85,9 +85,9 @@ export default function ReportsPage() {
           <p className="text-sm text-gray-400 mt-1">Dữ liệu thực tế</p>
         </div>
         <div className="bg-white rounded-xl p-6 shadow-sm">
-          <p className="text-sm text-gray-500">Lợi nhuận ước tính</p>
+          <p className="text-sm text-gray-500">Lợi nhuận ước tính (25%)</p>
           <p className="text-3xl font-bold mt-2">{formatCurrency(estimatedProfit)}</p>
-          <p className="text-sm text-gray-500 mt-1">Biên lợi nhuận: 25%</p>
+          <p className="text-sm text-gray-400 mt-1">Ước tính, không dựa trên giá vốn thực tế</p>
         </div>
       </div>
 

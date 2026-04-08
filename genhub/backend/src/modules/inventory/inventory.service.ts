@@ -26,15 +26,17 @@ export class InventoryService {
   }
 
   async getLowStockItems(storeId: string) {
-    const items = await this.prisma.$queryRaw`
-      SELECT i.*, p.name as product_name, p.sku
-      FROM inventory i
-      JOIN products p ON p.id = i."productId"
-      WHERE i."storeId" = ${storeId}
-        AND i.quantity <= i."lowStockAlert"
-        AND p."deletedAt" IS NULL
-    `;
-    return items;
+    const items = await this.prisma.inventory.findMany({
+      where: {
+        storeId,
+        product: { deletedAt: null },
+      },
+      include: {
+        product: true,
+        variant: true,
+      },
+    });
+    return items.filter((item) => item.quantity <= item.lowStockAlert);
   }
 
   async purchase(

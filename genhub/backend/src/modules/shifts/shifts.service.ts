@@ -36,11 +36,12 @@ export class ShiftsService {
     if (!shift) throw new NotFoundException('Không tìm thấy ca đang mở');
 
     // Tính doanh thu trong ca
+    const closedAt = new Date();
     const orders = await this.prisma.order.aggregate({
       where: {
         storeId,
         status: 'completed',
-        createdAt: { gte: shift.openedAt },
+        createdAt: { gte: shift.openedAt, lte: closedAt },
       },
       _sum: { totalAmount: true },
       _count: true,

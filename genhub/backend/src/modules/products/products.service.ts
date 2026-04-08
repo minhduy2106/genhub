@@ -1,14 +1,69 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { createSlug } from '../../common/utils/slug.util';
 import { paginate } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
+import { mkdir, writeFile } from 'fs/promises';
+import { extname, join } from 'path';
 
 @Injectable()
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
+
+  private getUploadDir() {
+    return join(process.cwd(), 'uploads', 'products');
+  }
+
+  private getPublicBaseUrl() {
+    const port = process.env.PORT ?? '4000';
+    return process.env.BACKEND_PUBLIC_URL ?? `http://localhost:${port}`;
+  }
+
+  private withPublicAssetUrl<T extends { images?: Array<{ url: string }> }>(
+    product: T,
+  ): T {
+    if (!product.images?.length) return product;
+
+    return {
+      ...product,
+      images: product.images.map((image) => ({
+        ...image,
+        url: /^https?:\/\//i.test(image.url)
+          ? image.url
+          : `${this.getPublicBaseUrl()}${image.url.startsWith('/') ? '' : '/'}${image.url}`,
+      })),
+    };
+  }
+
+  private ensureImageFile(file: {
+    originalname: string;
+    mimetype: string;
+    size: number;
+    buffer: Buffer;
+  }) {
+    const allowedMimeTypes = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/jpg',
+    ]);
+
+    if (!allowedMimeTypes.has(file.mimetype)) {
+      throw new BadRequestException(
+        'Ảnh sản phẩm phải là file JPG, PNG hoặc WEBP',
+      );
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('Ảnh sản phẩm không được vượt quá 5MB');
+    }
+  }
 
   async findAll(storeId: string, query: ProductQueryDto) {
     const where: Prisma.ProductWhereInput = {
@@ -25,7 +80,7 @@ export class ProductsService {
       ...(query.status && { status: query.status }),
     };
 
-    const [data, total] = await Promise.all([
+    const [rawData, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         include: {
@@ -40,6 +95,8 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ]);
+
+    const data = rawData.map((product) => this.withPublicAssetUrl(product));
 
     return paginate(data, total, query.page, query.limit);
   }
@@ -109,10 +166,12 @@ export class ProductsService {
         }
       }
 
-      return tx.product.findUnique({
+      const created = await tx.product.findUnique({
         where: { id: product.id },
         include: { variants: true, inventory: true, images: true },
       });
+
+      return created ? this.withPublicAssetUrl(created) : created;
     });
   }
 
@@ -127,7 +186,7 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm');
-    return product;
+    return this.withPublicAssetUrl(product);
   }
 
   async update(id: string, storeId: string, dto: Partial<CreateProductDto>) {
@@ -166,7 +225,7 @@ export class ProductsService {
   }
 
   async search(storeId: string, q: string) {
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where: {
         storeId,
         deletedAt: null,
@@ -181,6 +240,8 @@ export class ProductsService {
       include: { variants: true, inventory: true, images: { take: 1 } },
       take: 20,
     });
+
+    return products.map((product) => this.withPublicAssetUrl(product));
   }
 
   async findByBarcode(storeId: string, barcode: string) {
@@ -190,5 +251,47 @@ export class ProductsService {
     });
     if (!product) throw new NotFoundException('Không tìm thấy sản phẩm');
     return product;
+  }
+
+  async attachImage(
+    id: string,
+    storeId: string,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    this.ensureImageFile(file);
+
+    const product = await this.findOne(id, storeId);
+    const uploadDir = this.getUploadDir();
+    await mkdir(uploadDir, { recursive: true });
+
+    const fileExt = extname(file.originalname).toLowerCase() || '.jpg';
+    const fileName = `${product.id}-${Date.now()}${fileExt}`;
+    const storageKey = `products/${fileName}`;
+    const diskPath = join(uploadDir, fileName);
+    const publicUrl = `/uploads/${storageKey}`;
+
+    await writeFile(diskPath, file.buffer);
+
+    const existingImageCount = await this.prisma.productImage.count({
+      where: { productId: product.id },
+    });
+
+    const image = await this.prisma.productImage.create({
+      data: {
+        productId: product.id,
+        url: publicUrl,
+        storageKey,
+        altText: product.name,
+        sortOrder: existingImageCount,
+        isPrimary: existingImageCount === 0,
+      },
+    });
+
+    return image;
   }
 }

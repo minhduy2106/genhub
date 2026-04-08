@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { RegisterDto } from './dto/register.dto';
@@ -66,6 +67,8 @@ export class AuthService {
       result.user.id,
       result.store.id,
       'owner',
+      [],
+      dto.fullName,
     );
 
     return {
@@ -113,6 +116,7 @@ export class AuthService {
       user.storeId,
       user.role.slug,
       permissions,
+      user.fullName,
     );
 
     return {
@@ -158,6 +162,15 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
+    // Rate limit: max 5 OTP requests per email per 15 minutes
+    const rateLimitKey = `otp:attempts:${email}`;
+    const attempts = await this.redis.get(rateLimitKey);
+    if (attempts && parseInt(attempts) >= 5) {
+      throw new BadRequestException(
+        'Quá nhiều yêu cầu. Vui lòng thử lại sau 15 phút',
+      );
+    }
+
     const user = await this.prisma.user.findFirst({
       where: { email, deletedAt: null, isActive: true },
     });
@@ -167,6 +180,10 @@ export class AuthService {
       return { message: 'Nếu email tồn tại, mã xác nhận đã được gửi' };
     }
 
+    // Increment attempt counter
+    const currentAttempts = attempts ? parseInt(attempts) + 1 : 1;
+    await this.redis.set(rateLimitKey, currentAttempts.toString(), 15 * 60);
+
     // Generate 6-digit OTP
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -174,8 +191,10 @@ export class AuthService {
     const redisKey = `password_reset:${email}`;
     await this.redis.set(redisKey, code, 15 * 60);
 
-    // In production, send email here. For now, log to console.
-    console.log(`[Forgot Password] OTP for ${email}: ${code}`);
+    // In production, send email here. For now, log to console (dev only).
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Forgot Password] OTP for ${email}: ${code}`);
+    }
 
     return { message: 'Mã xác nhận đã được gửi đến email của bạn' };
   }
@@ -207,6 +226,53 @@ export class AuthService {
     await this.redis.del(redisKey);
 
     return { message: 'Đặt lại mật khẩu thành công' };
+  }
+
+  async getStore(storeId: string) {
+    return this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        address: true,
+        settings: true,
+        plan: true,
+      },
+    });
+  }
+
+  async updateStore(
+    storeId: string,
+    data: {
+      name?: string;
+      phone?: string;
+      address?: string;
+      settings?: Record<string, unknown>;
+    },
+  ) {
+    const updateData: Prisma.StoreUpdateInput = {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.phone !== undefined && { phone: data.phone }),
+      ...(data.address !== undefined && { address: data.address }),
+      ...(data.settings !== undefined && {
+        settings: data.settings as Prisma.InputJsonValue,
+      }),
+    };
+
+    const store = await this.prisma.store.update({
+      where: { id: storeId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        address: true,
+        settings: true,
+        plan: true,
+      },
+    });
+    return store;
   }
 
   async refreshToken(token: string) {
@@ -261,13 +327,14 @@ export class AuthService {
     storeId: string,
     role: string,
     permissions: string[] = [],
+    fullName: string = '',
   ) {
     const payload: JwtPayload = {
       sub: userId,
       storeId,
       role,
       permissions,
-      fullName: '',
+      fullName,
     };
     const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
     const refreshToken = this.jwtService.sign(

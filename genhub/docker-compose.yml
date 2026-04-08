@@ -34,10 +34,13 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4000"
+      BACKEND_PUBLIC_URL: http://localhost:4000
       DATABASE_URL: postgresql://genhub:genhub_secret@postgres:5432/genhub
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
       FRONTEND_URL: http://localhost:3000
+    volumes:
+      - backend_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,3 +64,7 @@ services:
 
 volumes:
   postgres_data:
+  backend_uploads:
+
+
+

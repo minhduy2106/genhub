@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -7,7 +8,10 @@ import {
   Body,
   Param,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
@@ -33,12 +37,39 @@ export class ProductsController {
     return this.service.create(user.storeId, user.sub, dto);
   }
 
+  @Post(':id/images')
+  @RequirePermissions('products:update')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  uploadImage(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile()
+    file?: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn ảnh sản phẩm để tải lên');
+    }
+
+    return this.service.attachImage(id, user.storeId, file);
+  }
+
   @Get('search')
+  @RequirePermissions('products:view')
   search(@CurrentUser() user: JwtPayload, @Query('q') q: string) {
     return this.service.search(user.storeId, q ?? '');
   }
 
   @Get('barcode/:barcode')
+  @RequirePermissions('products:view')
   findByBarcode(
     @CurrentUser() user: JwtPayload,
     @Param('barcode') barcode: string,

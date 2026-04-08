@@ -1,9 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
+
+  private formatChartDate(date: Date) {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+    const day = `${date.getDate()}`.padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
   async dashboard(storeId: string) {
     const today = new Date();
@@ -11,7 +18,7 @@ export class ReportsService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [todayOrders, todayRevenue, newCustomers, lowStock] =
+    const [todayOrders, todayRevenue, newCustomers, lowStockCount] =
       await Promise.all([
         this.prisma.order.count({
           where: {
@@ -33,25 +40,53 @@ export class ReportsService {
         this.prisma.customer.count({
           where: { storeId, deletedAt: null, createdAt: { gte: today } },
         }),
-        this.prisma.$queryRaw`
-          SELECT COUNT(*) as count FROM inventory
-          WHERE "storeId" = ${storeId} AND quantity <= "lowStockAlert"
-        ` as Promise<{ count: bigint }[]>,
+        this.prisma.inventory.findMany({
+          where: {
+            storeId,
+            product: { deletedAt: null },
+          },
+          select: {
+            quantity: true,
+            lowStockAlert: true,
+          },
+        }),
       ]);
 
     // Doanh thu 7 ngày
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const revenueChart = await this.prisma.order.groupBy({
-      by: ['createdAt'],
+    const revenueOrders = await this.prisma.order.findMany({
       where: {
         storeId,
         status: 'completed',
         deletedAt: null,
         createdAt: { gte: sevenDaysAgo },
       },
-      _sum: { totalAmount: true },
+      select: {
+        createdAt: true,
+        totalAmount: true,
+      },
+      orderBy: { createdAt: 'asc' },
     });
+
+    const chartMap = new Map<
+      string,
+      { date: string; revenue: number; orders: number }
+    >();
+
+    for (const order of revenueOrders) {
+      const dateKey = this.formatChartDate(order.createdAt);
+      const current = chartMap.get(dateKey) ?? {
+        date: dateKey,
+        revenue: 0,
+        orders: 0,
+      };
+      current.revenue += Number(order.totalAmount ?? 0);
+      current.orders += 1;
+      chartMap.set(dateKey, current);
+    }
+
+    const revenueChart = Array.from(chartMap.values());
 
     // Top 5 sản phẩm bán chạy
     const topItems = await this.prisma.orderItem.groupBy({
@@ -79,20 +114,34 @@ export class ReportsService {
       : [];
     const topProducts = topItems.map((item) => ({
       ...item,
+      _sum: {
+        quantity: Number(item._sum.quantity ?? 0),
+        lineTotal: Number(item._sum.lineTotal ?? 0),
+      },
       product: products.find((p) => p.id === item.productId) ?? null,
     }));
 
     return {
-      revenue: { total: todayRevenue._sum.totalAmount ?? 0 },
+      revenue: { total: Number(todayRevenue._sum.totalAmount ?? 0) },
       orders: { total: todayOrders },
       newCustomers: { total: newCustomers },
-      lowStockCount: Number(lowStock[0]?.count ?? 0),
+      lowStockCount: lowStockCount.filter(
+        (item) => item.quantity <= item.lowStockAlert,
+      ).length,
       revenueChart,
       topProducts,
     };
   }
 
   async revenue(storeId: string, from?: string, to?: string) {
+    if (from && isNaN(new Date(from).getTime())) {
+      throw new BadRequestException(
+        'Invalid "from" date format. Use ISO 8601.',
+      );
+    }
+    if (to && isNaN(new Date(to).getTime())) {
+      throw new BadRequestException('Invalid "to" date format. Use ISO 8601.');
+    }
     const where = {
       storeId,
       status: 'completed' as const,
@@ -112,6 +161,10 @@ export class ReportsService {
   }
 
   async topProducts(storeId: string, limit = 10) {
+    if (!Number.isFinite(limit) || limit <= 0) {
+      throw new BadRequestException('Limit phải lớn hơn 0');
+    }
+
     const items = await this.prisma.orderItem.groupBy({
       by: ['productId'],
       where: {
@@ -119,7 +172,7 @@ export class ReportsService {
       },
       _sum: { quantity: true, lineTotal: true },
       orderBy: { _sum: { quantity: 'desc' } },
-      take: limit,
+      take: Math.min(limit, 50),
     });
 
     const productIds = items.map((i) => i.productId);
@@ -130,6 +183,10 @@ export class ReportsService {
 
     return items.map((item) => ({
       ...item,
+      _sum: {
+        quantity: Number(item._sum.quantity ?? 0),
+        lineTotal: Number(item._sum.lineTotal ?? 0),
+      },
       product: products.find((p) => p.id === item.productId),
     }));
   }

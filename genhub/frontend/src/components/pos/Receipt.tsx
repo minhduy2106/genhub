@@ -76,7 +76,7 @@ function buildPrintHTML(data: ReceiptData): string {
       : '';
 
   const payments = data.payments
-    .map((p) => `<div style="display:flex;justify-content:space-between;"><span>${paymentLabel(p.method)}</span><span>${fmtVND(p.amount)}</span></div>`)
+    .map((p) => `<div style="display:flex;justify-content:space-between;"><span>${esc(paymentLabel(p.method))}</span><span>${fmtVND(p.amount)}</span></div>`)
     .join('');
 
   const change =
@@ -181,6 +181,10 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
       <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Receipt preview */}
         <div className="p-5 space-y-3">
+          <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+            Đơn hàng đã được tạo thành công.
+          </div>
+
           {/* Header */}
           <div className="text-center">
             <h2 className="text-lg font-bold tracking-wide">{storeName}</h2>
@@ -218,7 +222,7 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
           {/* Items */}
           <div className="space-y-2">
             {data.items.map((item, i) => (
-              <div key={i} className="text-sm">
+              <div key={`${item.name}-${i}`} className="text-sm">
                 <div className="flex justify-between">
                   <span className="font-medium">{i + 1}. {item.name}</span>
                   <span className="font-semibold ml-2 whitespace-nowrap">{fmtVND(item.lineTotal)}</span>
@@ -256,7 +260,7 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
           {/* Payments */}
           <div className="text-sm space-y-1">
             {data.payments.map((p, i) => (
-              <div key={i} className="flex justify-between">
+              <div key={`${p.method}-${i}`} className="flex justify-between">
                 <span className="text-gray-500">{paymentLabel(p.method)}</span>
                 <span className="font-medium">{fmtVND(p.amount)}</span>
               </div>

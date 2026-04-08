@@ -1,7 +1,6 @@
 'use client';
 import { create } from 'zustand';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+import { API_URL, refreshAccessToken } from '@/lib/api';
 
 interface User {
   id: string;
@@ -49,20 +48,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     set({ isRehydrating: true });
     try {
-      const res = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      let activeToken = token;
+      let res = await fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${activeToken}` },
       });
-      if (!res.ok) {
-        // Token is invalid, clear everything
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
-        set({ user: null, accessToken: null, isAuthenticated: false, isRehydrating: false });
-        return;
+
+      if (res.status === 401) {
+        const refreshedToken = await refreshAccessToken();
+        if (!refreshedToken) {
+          throw new Error('Unauthorized');
+        }
+
+        activeToken = refreshedToken;
+        res = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${activeToken}` },
+        });
       }
+
+      if (!res.ok) {
+        throw new Error('Unauthorized');
+      }
+
       const json = await res.json();
       const user = json.data ?? json;
-      set({ user, accessToken: token, isAuthenticated: true, isRehydrating: false });
+      set({
+        user,
+        accessToken: activeToken,
+        isAuthenticated: true,
+        isRehydrating: false,
+      });
     } catch {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
