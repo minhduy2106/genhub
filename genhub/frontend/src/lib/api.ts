@@ -1,15 +1,9 @@
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+export const API_URL = '/api/v1';
 
 export function resolveAssetUrl(url?: string | null) {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
-
-  try {
-    return new URL(url, API_URL.replace(/\/api\/v1\/?$/, '/')).toString();
-  } catch {
-    return url;
-  }
+  return url.startsWith('/') ? url : `/${url}`;
 }
 
 function hasJsonBody(options?: RequestInit) {
