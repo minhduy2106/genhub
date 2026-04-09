@@ -5,17 +5,11 @@ const publicRoutes = ['/login', '/register', '/forgot-password'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
 
-  // If user has no token and is accessing a protected route, redirect to login
-  if (!token && !publicRoutes.some((route) => pathname.startsWith(route))) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // If user has token and is accessing auth pages, redirect to dashboard
-  if (token && publicRoutes.some((route) => pathname.startsWith(route))) {
+  // Do not gate protected routes at the edge by token presence alone.
+  // The app shell rehydrates the access token client-side and checks authorization there.
+  if (refreshToken && publicRoutes.some((route) => pathname.startsWith(route))) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 

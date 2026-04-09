@@ -5,6 +5,8 @@ import { Bell, Search, User, LogOut, ChevronDown } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/auth.store';
 
 const roleLabels: Record<string, string> = {
+  owner: 'Chủ cửa hàng',
+  staff: 'Nhân viên bán hàng',
   OWNER: 'Chủ cửa hàng',
   MANAGER: 'Quản lý',
   CASHIER: 'Thu ngân',

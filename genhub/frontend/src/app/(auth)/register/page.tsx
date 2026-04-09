@@ -54,6 +54,7 @@ export default function RegisterPage() {
 
       const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -71,10 +72,6 @@ export default function RegisterPage() {
       const data = json.data ?? json;
       setAuth(data.user, data.accessToken);
       localStorage.setItem('accessToken', data.accessToken);
-      document.cookie = `accessToken=${data.accessToken}; path=/; max-age=${15 * 60}; SameSite=Lax`;
-      if (data.refreshToken) {
-        localStorage.setItem('refreshToken', data.refreshToken);
-      }
       toast.success('Đăng ký thành công!');
       router.push('/dashboard');
     } catch {

@@ -10,6 +10,14 @@ import { OrderQueryDto } from './dto/order-query.dto';
 import { generateOrderCode } from '../../common/utils/generate-code.util';
 import { Prisma } from '@prisma/client';
 
+function toSafeAmount(value: number | null | undefined) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new BadRequestException('Giá trị giảm giá không hợp lệ');
+  }
+  return amount;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
@@ -197,9 +205,26 @@ export class OrdersService {
           );
         }
         const serverUnitPrice = Number(rawUnitPrice);
+        if (!Number.isFinite(serverUnitPrice) || serverUnitPrice <= 0) {
+          throw new BadRequestException(
+            `Giá bán của sản phẩm "${product.name}" không hợp lệ`,
+          );
+        }
 
-        const discount = item.discountAmount ?? 0;
-        const lineTotal = serverUnitPrice * item.quantity - discount;
+        const grossLineTotal = serverUnitPrice * item.quantity;
+        const discount = toSafeAmount(item.discountAmount);
+        if (discount >= grossLineTotal) {
+          throw new BadRequestException(
+            `Giảm giá của sản phẩm "${product.name}" không được làm giá trị dòng về 0 hoặc âm`,
+          );
+        }
+
+        const lineTotal = grossLineTotal - discount;
+        if (lineTotal <= 0) {
+          throw new BadRequestException(
+            `Giá trị dòng của sản phẩm "${product.name}" không hợp lệ`,
+          );
+        }
         subtotal += lineTotal;
 
         orderItems.push({
@@ -217,12 +242,16 @@ export class OrdersService {
         });
       }
 
-      const orderDiscount = dto.discountAmount ?? 0;
-      const totalAmount = subtotal - orderDiscount;
-      if (totalAmount < 0) {
+      const orderDiscount = toSafeAmount(dto.discountAmount);
+      if (orderDiscount >= subtotal) {
         throw new BadRequestException(
-          'Giảm giá không thể lớn hơn tổng đơn hàng',
+          'Giảm giá đơn hàng không được làm tổng đơn về 0 hoặc âm',
         );
+      }
+
+      const totalAmount = subtotal - orderDiscount;
+      if (totalAmount <= 0) {
+        throw new BadRequestException('Tổng đơn hàng phải lớn hơn 0');
       }
       if (!dto.payments || dto.payments.length === 0) {
         throw new BadRequestException(
@@ -326,15 +355,52 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       // Hoàn kho
       for (const item of order.items) {
-        await tx.inventory.updateMany({
+        const inventory = await tx.inventory.findFirst({
           where: {
             storeId,
             productId: item.productId,
             variantId: item.variantId ?? null,
           },
+        });
+
+        if (!inventory) {
+          throw new BadRequestException(
+            'Không tìm thấy tồn kho để hoàn lại cho đơn hàng này',
+          );
+        }
+
+        const updated = await tx.inventory.updateMany({
+          where: {
+            id: inventory.id,
+            version: inventory.version,
+          },
           data: {
             quantity: { increment: item.quantity },
             version: { increment: 1 },
+          },
+        });
+
+        if (updated.count === 0) {
+          throw new BadRequestException(
+            'Tồn kho vừa thay đổi, vui lòng thử hủy đơn lại',
+          );
+        }
+
+        await tx.inventoryTransaction.create({
+          data: {
+            storeId,
+            inventoryId: inventory.id,
+            productId: item.productId,
+            variantId: item.variantId ?? undefined,
+            type: 'order_cancel',
+            quantityChange: item.quantity,
+            quantityBefore: inventory.quantity,
+            quantityAfter: inventory.quantity + item.quantity,
+            unitCost: item.unitCost,
+            referenceType: 'order',
+            referenceId: order.id,
+            notes: reason ?? 'Hủy đơn hàng',
+            performedBy: userId,
           },
         });
       }

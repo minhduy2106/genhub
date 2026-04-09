@@ -98,38 +98,46 @@ export class InventoryService {
     newQuantity: number,
     notes?: string,
   ) {
-    const inv = await this.prisma.inventory.findFirst({
-      where: { storeId, productId, variantId: variantId ?? null },
-    });
-    if (!inv) throw new BadRequestException('Không tìm thấy tồn kho');
-
     if (newQuantity < 0) {
       throw new BadRequestException('Số lượng tồn kho không thể âm');
     }
 
-    const change = newQuantity - inv.quantity;
-    const type = change >= 0 ? 'adjustment_in' : 'adjustment_out';
+    return this.prisma.$transaction(async (tx) => {
+      const inv = await tx.inventory.findFirst({
+        where: { storeId, productId, variantId: variantId ?? null },
+      });
+      if (!inv) throw new BadRequestException('Không tìm thấy tồn kho');
 
-    await this.prisma.inventory.update({
-      where: { id: inv.id },
-      data: { quantity: newQuantity, version: { increment: 1 } },
-    });
+      const change = newQuantity - inv.quantity;
+      const type = change >= 0 ? 'adjustment_in' : 'adjustment_out';
 
-    await this.prisma.inventoryTransaction.create({
-      data: {
-        storeId,
-        inventoryId: inv.id,
-        productId,
-        variantId,
-        type,
-        quantityChange: change,
-        quantityBefore: inv.quantity,
-        quantityAfter: newQuantity,
-        notes,
-        performedBy: userId,
-      },
+      const updated = await tx.inventory.updateMany({
+        where: { id: inv.id, version: inv.version },
+        data: { quantity: newQuantity, version: { increment: 1 } },
+      });
+
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          'Tồn kho vừa được cập nhật bởi người khác, vui lòng thử lại',
+        );
+      }
+
+      await tx.inventoryTransaction.create({
+        data: {
+          storeId,
+          inventoryId: inv.id,
+          productId,
+          variantId,
+          type,
+          quantityChange: change,
+          quantityBefore: inv.quantity,
+          quantityAfter: newQuantity,
+          notes,
+          performedBy: userId,
+        },
+      });
+      return { message: 'Điều chỉnh tồn kho thành công' };
     });
-    return { message: 'Điều chỉnh tồn kho thành công' };
   }
 
   async transactions(storeId: string, query: PaginationDto) {

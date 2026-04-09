@@ -10,7 +10,16 @@ import { createSlug } from '../../common/utils/slug.util';
 import { paginate } from '../../common/dto/pagination.dto';
 import { Prisma } from '@prisma/client';
 import { mkdir, writeFile } from 'fs/promises';
-import { extname, join } from 'path';
+import { join } from 'path';
+
+type CategoryLookupClient = {
+  category: {
+    findFirst: (args: {
+      where: Prisma.CategoryWhereInput;
+      select?: { id?: boolean; storeId?: boolean };
+    }) => Promise<{ id: string; storeId: string } | null>;
+  };
+};
 
 @Injectable()
 export class ProductsService {
@@ -42,19 +51,19 @@ export class ProductsService {
   }
 
   private ensureImageFile(file: {
-    originalname: string;
     mimetype: string;
     size: number;
     buffer: Buffer;
   }) {
-    const allowedMimeTypes = new Set([
-      'image/jpeg',
-      'image/png',
-      'image/webp',
-      'image/jpg',
+    const allowedMimeTypes = new Map<string, string>([
+      ['image/jpeg', '.jpg'],
+      ['image/jpg', '.jpg'],
+      ['image/png', '.png'],
+      ['image/webp', '.webp'],
     ]);
 
-    if (!allowedMimeTypes.has(file.mimetype)) {
+    const normalizedMimeType = file.mimetype.toLowerCase();
+    if (!allowedMimeTypes.has(normalizedMimeType)) {
       throw new BadRequestException(
         'Ảnh sản phẩm phải là file JPG, PNG hoặc WEBP',
       );
@@ -62,6 +71,57 @@ export class ProductsService {
 
     if (file.size > 5 * 1024 * 1024) {
       throw new BadRequestException('Ảnh sản phẩm không được vượt quá 5MB');
+    }
+
+    const isJpeg =
+      file.buffer.length >= 3 &&
+      file.buffer[0] === 0xff &&
+      file.buffer[1] === 0xd8 &&
+      file.buffer[2] === 0xff;
+    const isPng =
+      file.buffer.length >= 8 &&
+      file.buffer[0] === 0x89 &&
+      file.buffer[1] === 0x50 &&
+      file.buffer[2] === 0x4e &&
+      file.buffer[3] === 0x47 &&
+      file.buffer[4] === 0x0d &&
+      file.buffer[5] === 0x0a &&
+      file.buffer[6] === 0x1a &&
+      file.buffer[7] === 0x0a;
+    const isWebp =
+      file.buffer.length >= 12 &&
+      file.buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      file.buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+
+    const detectedMimeType = isJpeg
+      ? 'image/jpeg'
+      : isPng
+        ? 'image/png'
+        : isWebp
+          ? 'image/webp'
+          : null;
+
+    if (detectedMimeType !== normalizedMimeType) {
+      throw new BadRequestException('Nội dung file ảnh không hợp lệ');
+    }
+
+    return allowedMimeTypes.get(normalizedMimeType) ?? '.jpg';
+  }
+
+  private async ensureCategoryBelongsToStore(
+    client: CategoryLookupClient,
+    storeId: string,
+    categoryId?: string | null,
+  ) {
+    if (categoryId === undefined || categoryId === null) return;
+
+    const category = await client.category.findFirst({
+      where: { id: categoryId, storeId },
+      select: { id: true, storeId: true },
+    });
+
+    if (!category) {
+      throw new BadRequestException('Danh mục không tồn tại trong cửa hàng');
     }
   }
 
@@ -105,6 +165,8 @@ export class ProductsService {
     const slug = createSlug(dto.name) + '-' + Date.now();
 
     return this.prisma.$transaction(async (tx) => {
+      await this.ensureCategoryBelongsToStore(tx, storeId, dto.categoryId);
+
       const product = await tx.product.create({
         data: {
           storeId,
@@ -199,6 +261,8 @@ export class ProductsService {
       attributes,
       ...rest
     } = dto;
+    await this.ensureCategoryBelongsToStore(this.prisma, storeId, categoryId);
+
     return this.prisma.product.update({
       where: { id },
       data: {
@@ -263,13 +327,11 @@ export class ProductsService {
       buffer: Buffer;
     },
   ) {
-    this.ensureImageFile(file);
-
     const product = await this.findOne(id, storeId);
     const uploadDir = this.getUploadDir();
     await mkdir(uploadDir, { recursive: true });
 
-    const fileExt = extname(file.originalname).toLowerCase() || '.jpg';
+    const fileExt = this.ensureImageFile(file);
     const fileName = `${product.id}-${Date.now()}${fileExt}`;
     const storageKey = `products/${fileName}`;
     const diskPath = join(uploadDir, fileName);

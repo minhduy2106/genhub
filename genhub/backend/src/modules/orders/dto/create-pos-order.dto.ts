@@ -17,7 +17,7 @@ export class PosOrderItemDto {
   @IsOptional() @IsUUID() variantId?: string;
   @IsInt() @Min(1) quantity: number;
   @IsNumber() @Min(0) unitPrice: number;
-  @IsOptional() @IsNumber() discountAmount?: number;
+  @IsOptional() @IsNumber() @Min(0) discountAmount?: number;
 }
 
 export class PosPaymentDto {
@@ -43,7 +43,7 @@ export class CreatePosOrderDto {
   @Type(() => PosPaymentDto)
   payments: PosPaymentDto[];
 
-  @IsOptional() @IsNumber() discountAmount?: number;
+  @IsOptional() @IsNumber() @Min(0) discountAmount?: number;
   @IsOptional() @IsString() discountType?: string;
   @IsOptional() @IsString() couponCode?: string;
   @IsOptional() @IsString() customerNote?: string;

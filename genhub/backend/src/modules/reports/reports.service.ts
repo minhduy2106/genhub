@@ -146,10 +146,12 @@ export class ReportsService {
       storeId,
       status: 'completed' as const,
       deletedAt: null,
-      ...(from &&
-        to && {
-          createdAt: { gte: new Date(from), lte: new Date(to) },
-        }),
+      ...((from || to) && {
+        createdAt: {
+          ...(from && { gte: new Date(from) }),
+          ...(to && { lte: new Date(to) }),
+        },
+      }),
     };
     const orders = await this.prisma.order.findMany({
       where,

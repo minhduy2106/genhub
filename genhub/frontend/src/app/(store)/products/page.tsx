@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, Search, Loader2, X } from 'lucide-react';
 import { apiFetch, resolveAssetUrl } from '@/lib/api';
+import { useAuthStore } from '@/lib/stores/auth.store';
+import { hasPermission } from '@/lib/permissions';
 import { formatCurrency } from '@/lib/utils/format';
 import { toast } from 'sonner';
 
@@ -332,7 +334,6 @@ function AddProductModal({ categories, onClose, onSuccess }: AddProductModalProp
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={handleImageChange}
                 className="hidden"
               />
@@ -633,11 +634,10 @@ function EditProductModal({
                   Chưa có ảnh
                 </div>
               )}
-              <span className="text-sm font-medium text-gray-700">Chọn ảnh mới</span>
+              <span className="text-sm font-medium text-gray-700">Chọn ảnh mới hoặc chụp từ điện thoại</span>
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={handleImageChange}
                 className="hidden"
               />
@@ -681,12 +681,15 @@ function EditProductModal({
 
 /* ---------- Main Page ---------- */
 export default function ProductsPage() {
+  const user = useAuthStore((state) => state.user);
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const canCreateProducts = hasPermission(user, 'products:create');
+  const canUpdateProducts = hasPermission(user, 'products:update');
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -738,13 +741,19 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Sản phẩm</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B] transition-colors font-medium"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Thêm sản phẩm</span>
-        </button>
+        {canCreateProducts ? (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B] transition-colors font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Thêm sản phẩm</span>
+          </button>
+        ) : (
+          <span className="rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-500">
+            Bạn chỉ có quyền xem sản phẩm
+          </span>
+        )}
       </div>
 
       {/* Search */}
@@ -789,8 +798,14 @@ export default function ProductsPage() {
                   return (
                     <tr
                       key={product.id}
-                      className="border-t hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedProduct(product)}
+                      className={`border-t ${
+                        canUpdateProducts ? 'cursor-pointer hover:bg-gray-50' : ''
+                      }`}
+                      onClick={() => {
+                        if (canUpdateProducts) {
+                          setSelectedProduct(product);
+                        }
+                      }}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -845,7 +860,7 @@ export default function ProductsPage() {
         />
       )}
 
-      {selectedProduct && (
+      {selectedProduct && canUpdateProducts && (
         <EditProductModal
           product={selectedProduct}
           categories={categories}

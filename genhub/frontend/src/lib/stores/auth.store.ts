@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { API_URL, refreshAccessToken } from '@/lib/api';
 
-interface User {
+export interface AuthUser {
   id: string;
   fullName: string;
   email: string;
@@ -13,11 +13,11 @@ interface User {
 }
 
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   accessToken: string | null;
   isAuthenticated: boolean;
   isRehydrating: boolean;
-  setAuth: (user: User, token: string) => void;
+  setAuth: (user: AuthUser, token: string) => void;
   logout: () => void;
   rehydrate: () => Promise<void>;
 }
@@ -35,25 +35,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: (user, accessToken) =>
     set({ user, accessToken, isAuthenticated: true }),
   logout: () => {
+    void fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {
+      // Best effort revoke only. Client state is still cleared below.
+    });
+
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
     set({ user: null, accessToken: null, isAuthenticated: false });
   },
   rehydrate: async () => {
     const token = get().accessToken || getStoredToken();
-    if (!token) {
-      set({ user: null, accessToken: null, isAuthenticated: false });
-      return;
-    }
     set({ isRehydrating: true });
     try {
       let activeToken = token;
-      let res = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${activeToken}` },
-      });
+      let res: Response | null = null;
 
-      if (res.status === 401) {
+      if (activeToken) {
+        res = await fetch(`${API_URL}/auth/me`, {
+          headers: { Authorization: `Bearer ${activeToken}` },
+        });
+      }
+
+      if (!activeToken || res?.status === 401) {
         const refreshedToken = await refreshAccessToken();
         if (!refreshedToken) {
           throw new Error('Unauthorized');
@@ -65,11 +70,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
 
-      if (!res.ok) {
+      if (!res?.ok) {
         throw new Error('Unauthorized');
       }
 
-      const json = await res.json();
+      const json = await res!.json();
       const user = json.data ?? json;
       set({
         user,
@@ -79,8 +84,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
     } catch {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      document.cookie = 'accessToken=; path=/; max-age=0; SameSite=Lax';
       set({ user: null, accessToken: null, isAuthenticated: false, isRehydrating: false });
     }
   },

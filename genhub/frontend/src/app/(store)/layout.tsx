@@ -1,11 +1,12 @@
 'use client';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { useAuthStore } from '@/lib/stores/auth.store';
+import { canAccessPath, getDefaultAuthorizedPath } from '@/lib/permissions';
 
 export default function StoreLayout({
   children,
@@ -13,21 +14,33 @@ export default function StoreLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, accessToken, isAuthenticated, isRehydrating, rehydrate } = useAuthStore();
+  const pathname = usePathname();
+  const { user, isAuthenticated, isRehydrating, rehydrate } = useAuthStore();
+  const hydrationAttempted = useRef(false);
 
   useEffect(() => {
-    if (!accessToken) {
+    if (isRehydrating) {
+      return;
+    }
+
+    if (!user && !hydrationAttempted.current) {
+      hydrationAttempted.current = true;
+      void rehydrate();
+      return;
+    }
+
+    if (!user && hydrationAttempted.current && !isAuthenticated) {
       router.replace('/login');
       return;
     }
-    if (isAuthenticated && !user && !isRehydrating) {
-      void rehydrate();
+
+    if (user && !canAccessPath(user, pathname)) {
+      router.replace(getDefaultAuthorizedPath(user));
     }
-  }, [accessToken, isAuthenticated, user, isRehydrating, rehydrate, router]);
+  }, [isAuthenticated, isRehydrating, pathname, rehydrate, router, user]);
+  const ready = !!user && !isRehydrating;
 
-  const ready = !!accessToken && !isRehydrating && (!!user || !isAuthenticated);
-
-  if (!ready) {
+  if (!ready || (user && !canAccessPath(user, pathname))) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-[#FF6B35]" />

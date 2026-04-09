@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { paginate } from '../../common/dto/pagination.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
@@ -7,6 +11,45 @@ import { Prisma } from '@prisma/client';
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
+
+  private async ensureUniqueCustomerFields(
+    storeId: string,
+    data: {
+      phone?: string;
+      code?: string;
+    },
+    excludeId?: string,
+  ) {
+    if (data.phone) {
+      const existingPhone = await this.prisma.customer.findFirst({
+        where: {
+          storeId,
+          phone: data.phone,
+          deletedAt: null,
+          ...(excludeId && { id: { not: excludeId } }),
+        },
+      });
+      if (existingPhone) {
+        throw new ConflictException(
+          'Số điện thoại khách hàng đã tồn tại trong cửa hàng',
+        );
+      }
+    }
+
+    if (data.code) {
+      const existingCode = await this.prisma.customer.findFirst({
+        where: {
+          storeId,
+          code: data.code,
+          deletedAt: null,
+          ...(excludeId && { id: { not: excludeId } }),
+        },
+      });
+      if (existingCode) {
+        throw new ConflictException('Mã khách hàng đã tồn tại trong cửa hàng');
+      }
+    }
+  }
 
   async findAll(storeId: string, query: CustomerQueryDto) {
     const page = query.page ?? 1;
@@ -44,6 +87,11 @@ export class CustomersService {
       code?: string;
     },
   ) {
+    await this.ensureUniqueCustomerFields(storeId, {
+      phone: data.phone,
+      code: data.code,
+    });
+
     return this.prisma.customer.create({
       data: { ...data, storeId },
     });
@@ -70,6 +118,13 @@ export class CustomersService {
     },
   ) {
     await this.findOne(id, storeId);
+    await this.ensureUniqueCustomerFields(
+      storeId,
+      {
+        phone: data.phone,
+      },
+      id,
+    );
     return this.prisma.customer.update({ where: { id }, data });
   }
 

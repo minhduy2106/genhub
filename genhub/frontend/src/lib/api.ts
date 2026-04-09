@@ -42,17 +42,9 @@ function extractErrorMessage(json: unknown) {
 }
 
 export async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('refreshToken')
-      : null;
-
-  if (!refreshToken) return null;
-
   const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    credentials: 'include',
   });
 
   if (!refreshRes.ok) return null;
@@ -63,7 +55,6 @@ export async function refreshAccessToken(): Promise<string | null> {
   if (!newToken || typeof window === 'undefined') return null;
 
   localStorage.setItem('accessToken', newToken);
-  document.cookie = `accessToken=${newToken}; path=/; max-age=${15 * 60}; SameSite=Lax`;
   return newToken;
 }
 
@@ -104,8 +95,6 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 
     if (typeof window !== 'undefined') {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      document.cookie = 'accessToken=; path=/; max-age=0';
       window.location.href = '/login';
     }
     throw new Error('Unauthorized');
