@@ -121,7 +121,7 @@ export default function InventoryPage() {
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Kho hàng</h1>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -133,7 +133,7 @@ export default function InventoryPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left text-gray-500">
+                <tr className="bg-gray-50/80 text-left text-xs uppercase tracking-wider text-gray-400">
                   <th
                     className="p-4 font-medium cursor-pointer select-none hover:text-gray-700"
                     onClick={() => handleSort('name')}
@@ -164,7 +164,7 @@ export default function InventoryPage() {
                   return (
                     <tr
                       key={item.id}
-                      className={`border-t cursor-pointer hover:bg-gray-50 ${isLow ? 'bg-red-50' : ''}`}
+                      className={`border-t cursor-pointer hover:bg-orange-50/50 ${isLow ? 'bg-red-50' : ''}`}
                       onClick={() => openAdjustModal(item)}
                     >
                       <td className="p-4 font-medium">{name}</td>
@@ -241,7 +241,7 @@ export default function InventoryPage() {
                 <button
                   type="button"
                   onClick={closeAdjustModal}
-                  className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  className="flex-1 rounded-xl border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-orange-50/50"
                 >
                   Hủy
                 </button>
@@ -249,7 +249,7 @@ export default function InventoryPage() {
                   type="button"
                   onClick={handleSaveAdjustment}
                   disabled={saving}
-                  className="flex-1 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-medium text-white hover:bg-[#E55A2B] disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-medium text-white hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-60"
                 >
                   {saving ? 'Đang lưu...' : 'Lưu tồn kho'}
                 </button>

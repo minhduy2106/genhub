@@ -130,3 +130,39 @@
     @apply font-sans;
   }
 }
+
+/* ---------- TinHub brand polish ---------- */
+::selection {
+  background: rgba(255, 107, 53, 0.25);
+}
+
+/* Thanh cuộn mảnh, hợp tông sáng */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(26, 32, 44, 0.18);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 53, 0.45);
+}
+
+/* Hiệu ứng xuất hiện nhẹ cho nội dung trang */
+@keyframes tinhub-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: tinhub-fade-up 0.3s ease-out both;
+}

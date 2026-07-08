@@ -1,0 +1,10 @@
+# Secrets — không commit
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Uploads (dev local; production dùng Docker volume)
+backend/uploads/

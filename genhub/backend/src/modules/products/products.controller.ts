@@ -37,6 +37,30 @@ export class ProductsController {
     return this.service.create(user.storeId, user.sub, dto);
   }
 
+  @Post('ocr-scan')
+  @RequirePermissions('products:create')
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    }),
+  )
+  ocrScan(
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile()
+    file?: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    if (!file) {
+      throw new BadRequestException('Vui lòng chọn ảnh để quét');
+    }
+
+    return this.service.ocrScan(user.storeId, file);
+  }
+
   @Post(':id/images')
   @RequirePermissions('products:update')
   @UseInterceptors(

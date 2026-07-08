@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { X, Banknote, CreditCard, Building2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/format';
+import { bankShortName, type BankSettings } from '@/lib/utils/vietqr';
+import { useVietQRDataUrl } from '@/lib/utils/use-vietqr';
 
 type PaymentMethod = 'cash' | 'card' | 'bank_transfer';
 
@@ -16,6 +18,8 @@ interface PaymentModalProps {
   onConfirm: (payments: PaymentEntry[]) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  bank?: BankSettings | null;
+  qrMemo?: string;
 }
 
 const METHOD_OPTIONS: { key: PaymentMethod; label: string; icon: typeof Banknote }[] = [
@@ -24,13 +28,25 @@ const METHOD_OPTIONS: { key: PaymentMethod; label: string; icon: typeof Banknote
   { key: 'bank_transfer', label: 'Chuyển khoản', icon: Building2 },
 ];
 
-export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoading }: PaymentModalProps) {
+export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoading, bank, qrMemo }: PaymentModalProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [cashReceived, setCashReceived] = useState<string>(totalAmount.toString());
   const [splitMode, setSplitMode] = useState(false);
   const [splitPayments, setSplitPayments] = useState<PaymentEntry[]>([]);
   const [splitMethod, setSplitMethod] = useState<PaymentMethod>('cash');
   const [splitAmount, setSplitAmount] = useState<string>('');
+
+  const showTransferQR = !splitMode && selectedMethod === 'bank_transfer' && !!bank;
+  const qrDataUrl = useVietQRDataUrl(
+    showTransferQR && bank
+      ? {
+          bankBin: bank.bin,
+          accountNumber: bank.accountNumber,
+          amount: totalAmount,
+          memo: qrMemo,
+        }
+      : null,
+  );
 
   const cashReceivedNum = Number(cashReceived) || 0;
   const changeAmount = selectedMethod === 'cash' ? Math.max(0, cashReceivedNum - totalAmount) : 0;
@@ -152,6 +168,36 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
                   </div>
                 </div>
               )}
+
+              {/* Bank transfer QR */}
+              {selectedMethod === 'bank_transfer' && (
+                bank ? (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    {qrDataUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={qrDataUrl} alt="Mã QR chuyển khoản VietQR" className="h-52 w-52 rounded-lg bg-white p-2" />
+                    ) : (
+                      <div className="flex h-52 w-52 items-center justify-center text-sm text-gray-400">
+                        Đang tạo mã QR...
+                      </div>
+                    )}
+                    <div className="text-center text-sm">
+                      <p className="font-semibold">{bank.accountName || 'Chưa có tên chủ TK'}</p>
+                      <p className="text-gray-600">
+                        {bankShortName(bank.bin)} • {bank.accountNumber}
+                      </p>
+                      <p className="mt-1 font-bold text-[#FF6B35]">{formatCurrency(totalAmount)}</p>
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      Khách quét bằng app ngân hàng bất kỳ (Napas 247)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                    Chưa cấu hình tài khoản nhận chuyển khoản. Vào Cài đặt → Tài khoản nhận chuyển khoản (VietQR) để hiện mã QR.
+                  </div>
+                )
+              )}
             </>
           ) : (
             /* Split payment mode */
@@ -198,7 +244,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
                   />
                   <button
                     onClick={addSplitPayment}
-                    className="px-3 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B]"
+                    className="px-3 py-2 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg text-sm font-medium hover:from-[#F0561D] hover:to-[#FF813A]"
                   >
                     Thêm
                   </button>
@@ -220,7 +266,7 @@ export default function PaymentModal({ totalAmount, onConfirm, onCancel, isLoadi
           <button
             onClick={handleConfirm}
             disabled={isLoading || (!splitMode && !isValid) || (splitMode && splitPaid < totalAmount)}
-            className="flex-1 py-3 bg-[#FF6B35] text-white rounded-xl font-bold hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 py-3 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-xl font-bold hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isLoading ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
           </button>

@@ -81,23 +81,33 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`hidden lg:flex flex-col bg-[#1A202C] text-white transition-all duration-200 ${
+      className={`hidden lg:flex flex-col bg-gradient-to-b from-[#1A202C] via-[#1A202C] to-[#141922] text-white transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-60'
       }`}
     >
-      <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
+      <div className="flex items-center justify-between h-16 px-3 border-b border-white/10">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <Store className="h-6 w-6 text-[#FF6B35]" />
-            <span className="text-lg font-bold text-[#FF6B35]">GenHub</span>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#FF9046] shadow-lg shadow-orange-500/30">
+              <Store className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <span className="text-lg font-bold tracking-tight">TinHub</span>
+              <p className="text-[10px] font-medium uppercase tracking-widest text-[#FF9046]">
+                POS
+              </p>
+            </div>
           </div>
         )}
-        <button onClick={() => setCollapsed(!collapsed)} className="p-1 hover:bg-white/10 rounded">
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="p-1.5 text-gray-400 hover:bg-white/10 hover:text-white rounded-lg transition-colors"
+        >
           <ChevronLeft className={`h-4 w-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
-      <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {menuItems
           .filter((item) => item.visible(user))
           .map((item) => {
@@ -107,13 +117,17 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150 ${
                   active
-                    ? 'bg-[#FF6B35] text-white font-medium'
-                    : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white font-semibold shadow-lg shadow-orange-500/30'
+                    : 'text-gray-400 hover:bg-white/5 hover:text-white hover:translate-x-0.5'
                 }`}
               >
-                <Icon className="h-5 w-5 shrink-0" />
+                <Icon
+                  className={`h-5 w-5 shrink-0 transition-transform duration-150 ${
+                    active ? '' : 'group-hover:scale-110'
+                  }`}
+                />
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             );
@@ -121,9 +135,15 @@ export function Sidebar() {
       </nav>
 
       {!collapsed && (
-        <div className="p-4 border-t border-white/10">
-          <p className="text-xs text-gray-500">{user?.store?.name ?? 'Cửa hàng'}</p>
-          <p className="text-xs text-gray-600">Gói: {user?.store?.plan ?? 'Miễn phí'}</p>
+        <div className="p-3">
+          <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+            <p className="text-xs font-medium text-gray-300 truncate">
+              {user?.store?.name ?? 'Cửa hàng'}
+            </p>
+            <span className="mt-1.5 inline-flex items-center rounded-full bg-[#FF6B35]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#FF9046]">
+              Gói: {user?.store?.plan ?? 'Miễn phí'}
+            </span>
+          </div>
         </div>
       )}
     </aside>

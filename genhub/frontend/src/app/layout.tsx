@@ -3,7 +3,7 @@ import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'GenHub POS - Quản lý bán hàng thông minh',
+  title: 'TinHub POS - Quản lý bán hàng thông minh',
   description: 'Phần mềm quản lý bán hàng cho SME Việt Nam',
 };
 

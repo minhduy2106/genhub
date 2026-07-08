@@ -153,14 +153,14 @@ function AddCustomerModal({ onClose, onCreated }: AddCustomerModalProps) {
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="flex-1 py-2.5 border rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+              className="flex-1 py-2.5 border rounded-lg text-sm font-medium hover:bg-orange-50/50 disabled:opacity-50"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-2.5 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg text-sm font-medium hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -239,7 +239,7 @@ export default function CustomersPage() {
         <h1 className="text-2xl font-bold">Khách hàng</h1>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-[#FF6B35] text-white px-4 py-2 rounded-lg hover:bg-[#E55A2B] transition-colors"
+          className="flex items-center gap-2 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 px-4 py-2 rounded-lg hover:from-[#F0561D] hover:to-[#FF813A] transition-colors"
         >
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Thêm khách hàng</span>
@@ -265,7 +265,7 @@ export default function CustomersPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -300,7 +300,7 @@ export default function CustomersPage() {
           <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 text-left text-gray-500">
+              <tr className="bg-gray-50/80 text-left text-xs uppercase tracking-wider text-gray-400">
                 <th className="p-4 font-medium">Tên khách hàng</th>
                 <th className="p-4 font-medium">SĐT</th>
                 <th className="p-4 font-medium hidden md:table-cell">Email</th>
@@ -311,7 +311,7 @@ export default function CustomersPage() {
             </thead>
             <tbody>
               {customers.map((customer) => (
-                <tr key={customer.id} className="border-t hover:bg-gray-50 cursor-pointer">
+                <tr key={customer.id} className="border-t hover:bg-orange-50/50 cursor-pointer">
                   <td className="p-4 font-medium">{customer.fullName}</td>
                   <td className="p-4 text-gray-500">{customer.phone ?? '-'}</td>
                   <td className="p-4 text-gray-500 hidden md:table-cell">

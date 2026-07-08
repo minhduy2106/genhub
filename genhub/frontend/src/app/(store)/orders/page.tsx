@@ -183,8 +183,8 @@ export default function OrdersPage() {
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 rounded-lg text-sm whitespace-nowrap ${
               activeTab === tab.key
-                ? 'bg-[#FF6B35] text-white'
-                : 'bg-white text-gray-600 border hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25'
+                : 'bg-white text-gray-600 border hover:bg-orange-50/50'
             }`}
           >
             {tab.label}
@@ -192,7 +192,7 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -206,7 +206,7 @@ export default function OrdersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left text-gray-500">
+                <tr className="bg-gray-50/80 text-left text-xs uppercase tracking-wider text-gray-400">
                   <th className="p-4 font-medium">Mã đơn</th>
                   <th className="p-4 font-medium">Khách hàng</th>
                   <th className="p-4 font-medium hidden sm:table-cell">Kênh</th>
@@ -220,7 +220,7 @@ export default function OrdersPage() {
                   <tr
                     key={order.id}
                     onClick={() => openOrder(order)}
-                    className="border-t hover:bg-gray-50 cursor-pointer"
+                    className="border-t hover:bg-orange-50/50 cursor-pointer"
                   >
                     <td className="p-4 font-medium text-[#FF6B35]">{order.code}</td>
                     <td className="p-4">
@@ -409,7 +409,7 @@ export default function OrdersPage() {
                     <button
                       onClick={() => handleComplete(selectedOrder)}
                       disabled={actionLoading}
-                      className="flex-1 py-2.5 bg-[#FF6B35] text-white rounded-lg text-sm font-semibold hover:bg-[#E55A2B] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg text-sm font-semibold hover:from-[#F0561D] hover:to-[#FF813A] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                     >
                       {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                       Xác nhận

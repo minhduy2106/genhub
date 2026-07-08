@@ -1,5 +1,8 @@
 'use client';
 
+import { bankShortName, type BankSettings } from '@/lib/utils/vietqr';
+import { generateVietQRDataUrl, useVietQRDataUrl } from '@/lib/utils/use-vietqr';
+
 export interface ReceiptItem {
   name: string;
   sku?: string;
@@ -25,6 +28,8 @@ export interface ReceiptData {
   customerName?: string | null;
   customerPhone?: string | null;
   storeName?: string;
+  bank?: BankSettings | null;
+  invoiceFooter?: string;
 }
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -54,8 +59,28 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function buildPrintHTML(data: ReceiptData): string {
-  const store = data.storeName ?? 'GENHUB POS';
+function transferAmount(data: ReceiptData): number {
+  return data.payments
+    .filter((p) => p.method === 'bank_transfer')
+    .reduce((sum, p) => sum + p.amount, 0);
+}
+
+function buildPrintHTML(data: ReceiptData, qrDataUrl: string | null): string {
+  const store = data.storeName ?? 'TINHUB POS';
+  const footer = data.invoiceFooter?.trim() || 'Cảm ơn quý khách! Hẹn gặp lại.';
+
+  const qrBlock =
+    qrDataUrl && data.bank
+      ? `<hr class="sep"/>
+<div style="text-align:center;">
+  <div style="font-size:11px;color:#555;margin-bottom:4px;">QUÉT MÃ ĐỂ CHUYỂN KHOẢN</div>
+  <img src="${qrDataUrl}" alt="VietQR" style="width:38mm;height:38mm;"/>
+  <div style="font-size:11px;margin-top:2px;">
+    <div style="font-weight:600;">${esc(data.bank.accountName)}</div>
+    <div>${esc(bankShortName(data.bank.bin))} • ${esc(data.bank.accountNumber)}</div>
+  </div>
+</div>`
+      : '';
 
   const items = data.items
     .map(
@@ -136,8 +161,9 @@ thead th:nth-child(3){text-align:center}
   ${payments}
   ${change}
 </div>
+${qrBlock}
 <hr class="sep"/>
-<div class="footer">Cảm ơn quý khách! Hẹn gặp lại.</div>
+<div class="footer">${esc(footer)}</div>
 </body></html>`;
 }
 
@@ -148,10 +174,24 @@ interface ReceiptProps {
 }
 
 export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
-  const storeName = data.storeName ?? 'GENHUB POS';
+  const storeName = data.storeName ?? 'TINHUB POS';
+  const bankAmount = transferAmount(data);
+  const qrParams =
+    data.bank && bankAmount > 0
+      ? {
+          bankBin: data.bank.bin,
+          accountNumber: data.bank.accountNumber,
+          amount: bankAmount,
+          memo: data.orderCode,
+        }
+      : null;
+  const qrDataUrl = useVietQRDataUrl(qrParams);
 
-  const handlePrint = () => {
-    const html = buildPrintHTML(data);
+  const handlePrint = async () => {
+    // Bấm In trước khi hook kịp render QR → tạo QR ngay để bản in không thiếu mã
+    const printQr =
+      qrDataUrl ?? (qrParams ? await generateVietQRDataUrl(qrParams) : null);
+    const html = buildPrintHTML(data, printQr);
     const existing = document.getElementById('receipt-print-frame');
     if (existing) existing.remove();
 
@@ -273,9 +313,26 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
             )}
           </div>
 
+          {qrDataUrl && data.bank && (
+            <>
+              <div className="border-t border-dashed border-gray-300" />
+              <div className="flex flex-col items-center gap-1 text-center">
+                <p className="text-xs font-medium text-gray-500">QUÉT MÃ ĐỂ CHUYỂN KHOẢN</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrDataUrl} alt="Mã QR chuyển khoản VietQR" className="h-36 w-36" />
+                <p className="text-xs font-semibold">{data.bank.accountName}</p>
+                <p className="text-xs text-gray-500">
+                  {bankShortName(data.bank.bin)} • {data.bank.accountNumber}
+                </p>
+              </div>
+            </>
+          )}
+
           <div className="border-t border-dashed border-gray-300" />
 
-          <p className="text-center text-xs text-gray-400">Cảm ơn quý khách! Hẹn gặp lại.</p>
+          <p className="text-center text-xs text-gray-400">
+            {data.invoiceFooter?.trim() || 'Cảm ơn quý khách! Hẹn gặp lại.'}
+          </p>
         </div>
 
         {/* Action buttons */}
@@ -288,7 +345,7 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
           </button>
           <button
             onClick={onNewOrder}
-            className="flex-1 py-2.5 bg-[#FF6B35] text-white rounded-xl font-medium hover:bg-[#E55A2B] transition-colors text-sm"
+            className="flex-1 py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-xl font-medium hover:from-[#F0561D] hover:to-[#FF813A] transition-colors text-sm"
           >
             Đơn mới
           </button>

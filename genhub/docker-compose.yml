@@ -41,6 +41,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env and use at least 32 characters}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      OCR_SERVER_URL: ${OCR_SERVER_URL:-}
     volumes:
       - backend_uploads:/app/uploads
     depends_on:

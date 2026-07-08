@@ -53,8 +53,8 @@ export default function StoreLayout({
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-y-auto bg-[#F7F8FA] p-4 lg:p-6 pb-20 lg:pb-6">
-          {children}
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-[#F7F8FA] via-[#F7F8FA] to-[#FDF3EC] p-4 lg:p-6 pb-20 lg:pb-6">
+          <div className="animate-fade-up">{children}</div>
         </main>
       </div>
       <MobileNav />

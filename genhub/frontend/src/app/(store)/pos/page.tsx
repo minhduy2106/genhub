@@ -9,8 +9,16 @@ import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import PaymentModal from '@/components/pos/PaymentModal';
 import Receipt, { type ReceiptData } from '@/components/pos/Receipt';
+import type { BankSettings } from '@/lib/utils/vietqr';
 
 /* ---------- Types ---------- */
+interface ProductVariant {
+  id: string;
+  name: string;
+  price: number | string;
+  isActive?: boolean;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -20,8 +28,10 @@ interface Product {
   costPrice: number;
   categoryId: string | null;
   status: string;
+  hasVariants?: boolean;
+  variants?: ProductVariant[];
   images?: { url: string }[];
-  inventory?: { quantity: number }[];
+  inventory?: { quantity: number; variantId?: string | null }[];
 }
 
 interface Category {
@@ -45,6 +55,16 @@ interface PosOrderResponse {
 function getStock(product: Product): number {
   if (!product.inventory?.length) return 0;
   return product.inventory.reduce((sum, inv) => sum + inv.quantity, 0);
+}
+
+function getActiveVariants(product: Product): ProductVariant[] {
+  return (product.variants ?? []).filter((v) => v.isActive !== false);
+}
+
+function getVariantStock(product: Product, variantId: string): number {
+  return (product.inventory ?? [])
+    .filter((inv) => inv.variantId === variantId)
+    .reduce((sum, inv) => sum + inv.quantity, 0);
 }
 
 function getImage(product: Product): string | null {
@@ -138,7 +158,7 @@ function QuickCreateCustomer({ initialName = '', onClose, onCreated }: QuickCrea
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 py-1.5 bg-[#FF6B35] text-white rounded-lg text-xs font-medium hover:bg-[#E55A2B] disabled:opacity-50 flex items-center justify-center gap-1"
+            className="flex-1 py-1.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg text-xs font-medium hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-50 flex items-center justify-center gap-1"
           >
             {loading ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -156,7 +176,7 @@ function QuickCreateCustomer({ initialName = '', onClose, onCreated }: QuickCrea
 /* ---------- Component ---------- */
 export default function PosPage() {
   const authUser = useAuthStore((s) => s.user);
-  const storeName = authUser?.store?.name ?? 'GENHUB POS';
+  const storeName = authUser?.store?.name ?? 'TINHUB POS';
 
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -183,7 +203,26 @@ export default function PosPage() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
 
+  // Chọn phân loại (màu/size/kích cỡ) trước khi thêm vào giỏ
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+
+  // Cấu hình VietQR + footer hóa đơn từ cài đặt cửa hàng
+  const [bank, setBank] = useState<BankSettings | null>(null);
+  const [invoiceFooter, setInvoiceFooter] = useState('');
+
   const cart = useCartStore();
+
+  useEffect(() => {
+    apiFetch<{ settings?: { bank?: BankSettings; invoiceFooter?: string } }>('/auth/store')
+      .then((store) => {
+        const bankSettings = store?.settings?.bank;
+        setBank(bankSettings?.bin && bankSettings.accountNumber ? bankSettings : null);
+        setInvoiceFooter(store?.settings?.invoiceFooter ?? '');
+      })
+      .catch(() => {
+        // Không chặn bán hàng nếu thiếu cấu hình — chỉ không hiện QR
+      });
+  }, []);
 
   /* ---------- Load products & categories on mount ---------- */
   useEffect(() => {
@@ -280,15 +319,51 @@ export default function PosPage() {
     : products;
 
   /* ---------- Add to cart ---------- */
+  const addVariantToCart = useCallback(
+    (product: Product, variant: ProductVariant) => {
+      const stock = getVariantStock(product, variant.id);
+      if (stock <= 0) {
+        toast.error(`Phân loại "${variant.name}" đã hết hàng`);
+        return;
+      }
+
+      const cartItem = cart.items.find(
+        (item) => item.productId === product.id && item.variantId === variant.id,
+      );
+      if (cartItem && cartItem.quantity >= stock) {
+        toast.error(`"${product.name} (${variant.name})" chỉ còn ${stock} sản phẩm`);
+        return;
+      }
+
+      cart.addItem({
+        productId: product.id,
+        variantId: variant.id,
+        name: `${product.name} (${variant.name})`,
+        price: Number(variant.price),
+        image: getImage(product),
+        stock,
+      });
+    },
+    [cart],
+  );
+
   const handleAddToCart = useCallback(
     (product: Product) => {
+      const variants = getActiveVariants(product);
+      if (variants.length > 0) {
+        setVariantPickerProduct(product);
+        return;
+      }
+
       const stock = getStock(product);
       if (stock <= 0) {
         toast.error(`Món "${product.name}" đã hết hàng`);
         return;
       }
 
-      const cartItem = cart.items.find((item) => item.productId === product.id);
+      const cartItem = cart.items.find(
+        (item) => item.productId === product.id && !item.variantId,
+      );
       if (cartItem && cartItem.quantity >= stock) {
         toast.error(`Món "${product.name}" chỉ còn ${stock} sản phẩm`);
         return;
@@ -415,6 +490,8 @@ export default function PosPage() {
         customerName: cart.customerName,
         customerPhone: cart.customerPhone,
         storeName,
+        bank,
+        invoiceFooter,
       };
 
       setShowPaymentModal(false);
@@ -459,7 +536,7 @@ export default function PosPage() {
             <button
               onClick={() => setActiveCategory(null)}
               className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap ${
-                !activeCategory ? 'bg-[#FF6B35] text-white' : 'bg-white text-gray-600 border'
+                !activeCategory ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25' : 'bg-white text-gray-600 border'
               }`}
             >
               Tất cả
@@ -469,7 +546,7 @@ export default function PosPage() {
                 key={cat.id}
                 onClick={() => setActiveCategory(cat.id)}
                 className={`px-4 py-1.5 rounded-full text-sm whitespace-nowrap ${
-                  activeCategory === cat.id ? 'bg-[#FF6B35] text-white' : 'bg-white text-gray-600 border'
+                  activeCategory === cat.id ? 'bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25' : 'bg-white text-gray-600 border'
                 }`}
               >
                 {cat.name}
@@ -493,18 +570,22 @@ export default function PosPage() {
                   key={product.id}
                   onClick={() => handleAddToCart(product)}
                   disabled={getStock(product) <= 0}
-                  className="bg-white rounded-xl p-3 text-left hover:ring-2 hover:ring-[#FF6B35] transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="group bg-white rounded-2xl p-3 text-left border border-gray-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-500/10 hover:ring-2 hover:ring-[#FF6B35]/70 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm disabled:hover:ring-0"
                 >
-                  <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center text-gray-300 overflow-hidden">
+                  <div className="aspect-square bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-300 overflow-hidden">
                     {getImage(product) ? (
-                      <img src={getImage(product)!} alt={product.name} className="w-full h-full object-cover" />
+                      <img src={getImage(product)!} alt={product.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                     ) : (
                       <ShoppingCart className="h-8 w-8" />
                     )}
                   </div>
                   <p className="text-sm font-medium truncate">{product.name}</p>
                   <p className="text-xs text-gray-500">{product.sku}</p>
-                  <p className="text-sm font-bold text-[#FF6B35] mt-1">{formatCurrency(product.price)}</p>
+                  <p className="text-sm font-bold text-[#FF6B35] mt-1">
+                    {getActiveVariants(product).length > 0
+                      ? `Từ ${formatCurrency(Math.min(...getActiveVariants(product).map((v) => Number(v.price))))}`
+                      : formatCurrency(product.price)}
+                  </p>
                   <p className={`text-xs ${getStock(product) > 0 ? 'text-gray-400' : 'text-red-500 font-medium'}`}>
                     {getStock(product) > 0 ? `Kho: ${getStock(product)}` : 'Hết hàng'}
                   </p>
@@ -517,7 +598,7 @@ export default function PosPage() {
           {cart.items.length > 0 && (
             <button
               onClick={() => setShowCart(true)}
-              className="lg:hidden fixed bottom-16 right-4 bg-[#FF6B35] text-white rounded-full p-4 shadow-lg z-40"
+              className="lg:hidden fixed bottom-16 right-4 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-lg shadow-orange-500/40 rounded-full p-4 z-40"
             >
               <ShoppingCart className="h-6 w-6" />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -529,7 +610,7 @@ export default function PosPage() {
 
         {/* Cart Panel */}
         <div
-          className={`w-full lg:w-96 bg-white rounded-xl shadow-sm flex flex-col ${
+          className={`w-full lg:w-96 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col ${
             !showCart ? 'hidden lg:flex' : ''
           }`}
         >
@@ -649,7 +730,7 @@ export default function PosPage() {
                           <button
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => setShowQuickCreate(true)}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E55A2B] transition-colors"
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg text-sm font-medium hover:from-[#F0561D] hover:to-[#FF813A] transition-colors"
                           >
                             <UserPlus className="h-4 w-4" />
                             Thêm khách hàng mới
@@ -761,7 +842,7 @@ export default function PosPage() {
             <button
               onClick={handleOpenPayment}
               disabled={cart.items.length === 0}
-              className="w-full py-3 bg-[#FF6B35] text-white rounded-xl font-bold text-lg hover:bg-[#E55A2B] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-xl font-bold text-lg hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Thanh toán
             </button>
@@ -776,7 +857,61 @@ export default function PosPage() {
           onConfirm={handleConfirmPayment}
           onCancel={() => setShowPaymentModal(false)}
           isLoading={paymentLoading}
+          bank={bank}
+          qrMemo={`Thanh toan ${storeName}`}
         />
+      )}
+
+      {/* Variant picker */}
+      {variantPickerProduct && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setVariantPickerProduct(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-xl w-full max-w-sm max-h-[80vh] overflow-y-auto shadow-xl"
+          >
+            <div className="p-4 border-b flex items-center justify-between">
+              <div>
+                <h2 className="font-bold">{variantPickerProduct.name}</h2>
+                <p className="text-xs text-gray-500">Chọn phân loại</p>
+              </div>
+              <button
+                onClick={() => setVariantPickerProduct(null)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-3 space-y-2">
+              {getActiveVariants(variantPickerProduct).map((variant) => {
+                const stock = getVariantStock(variantPickerProduct, variant.id);
+                return (
+                  <button
+                    key={variant.id}
+                    disabled={stock <= 0}
+                    onClick={() => {
+                      addVariantToCart(variantPickerProduct, variant);
+                      setVariantPickerProduct(null);
+                    }}
+                    className="w-full flex items-center justify-between rounded-xl border-2 border-gray-200 p-3 text-left hover:border-[#FF6B35] hover:bg-orange-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{variant.name}</p>
+                      <p className={`text-xs ${stock > 0 ? 'text-gray-400' : 'text-red-500'}`}>
+                        {stock > 0 ? `Kho: ${stock}` : 'Hết hàng'}
+                      </p>
+                    </div>
+                    <span className="font-bold text-[#FF6B35]">
+                      {formatCurrency(Number(variant.price))}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Receipt */}

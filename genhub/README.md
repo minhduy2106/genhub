@@ -11,6 +11,10 @@ Phần mềm quản lý bán hàng (POS) cho SME Việt Nam.
 ## Cách chạy
 
 ```bash
+cp .env.example .env
+# Điền JWT_SECRET vào .env (bắt buộc, tối thiểu 32 ký tự):
+#   openssl rand -base64 48
+
 docker compose up --build
 ```
 

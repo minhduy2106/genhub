@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, ShieldCheck, UserPlus } from 'lucide-react';
+import { Landmark, Loader2, ShieldCheck, UserPlus } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { isOwner } from '@/lib/permissions';
 import { formatDateTime } from '@/lib/utils/format';
+import { VIETQR_BANKS, type BankSettings } from '@/lib/utils/vietqr';
 
 interface StoreSettings {
   name: string;
   phone: string;
   address: string;
-  settings: { lowStockAlert?: number; invoiceFooter?: string };
+  settings: {
+    lowStockAlert?: number;
+    invoiceFooter?: string;
+    bank?: BankSettings;
+    ocrServerUrl?: string;
+  };
 }
 
 interface StaffUser {
@@ -56,6 +62,10 @@ export default function SettingsPage() {
   const [address, setAddress] = useState('');
   const [lowStockAlert, setLowStockAlert] = useState(5);
   const [invoiceFooter, setInvoiceFooter] = useState('Cảm ơn quý khách!');
+  const [bankBin, setBankBin] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankAccountName, setBankAccountName] = useState('');
+  const [ocrServerUrl, setOcrServerUrl] = useState('');
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [staffForm, setStaffForm] = useState<StaffForm>(defaultStaffForm);
   const [loading, setLoading] = useState(true);
@@ -77,6 +87,10 @@ export default function SettingsPage() {
       setAddress(storeData.address ?? '');
       setLowStockAlert(storeData.settings?.lowStockAlert ?? 5);
       setInvoiceFooter(storeData.settings?.invoiceFooter ?? 'Cảm ơn quý khách!');
+      setBankBin(storeData.settings?.bank?.bin ?? '');
+      setBankAccountNumber(storeData.settings?.bank?.accountNumber ?? '');
+      setBankAccountName(storeData.settings?.bank?.accountName ?? '');
+      setOcrServerUrl(storeData.settings?.ocrServerUrl ?? '');
       setStaff(Array.isArray(staffData) ? staffData : []);
     } catch {
       setStoreName(user?.store?.name ?? '');
@@ -100,7 +114,19 @@ export default function SettingsPage() {
           name: storeName,
           phone,
           address,
-          settings: { lowStockAlert, invoiceFooter },
+          settings: {
+            lowStockAlert,
+            invoiceFooter,
+            ocrServerUrl: ocrServerUrl.trim() || undefined,
+            bank:
+              bankBin && bankAccountNumber.trim()
+                ? {
+                    bin: bankBin,
+                    accountNumber: bankAccountNumber.trim(),
+                    accountName: bankAccountName.trim(),
+                  }
+                : undefined,
+          },
         }),
       });
       toast.success('Đã lưu cài đặt thành công');
@@ -229,12 +255,85 @@ export default function SettingsPage() {
               <button
                 onClick={handleSaveStore}
                 disabled={savingStore}
-                className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-6 py-2 text-white hover:bg-[#E55A2B] disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-6 py-2 text-white hover:from-[#F0561D] hover:to-[#FF813A] disabled:opacity-60"
               >
                 {savingStore && <Loader2 className="h-4 w-4 animate-spin" />}
                 Lưu thay đổi
               </button>
             </div>
+          </div>
+
+          <div className="rounded-xl bg-white p-6 shadow-sm">
+            <div className="mb-1 flex items-center gap-2">
+              <Landmark className="h-5 w-5 text-[#FF6B35]" />
+              <h3 className="font-semibold">Tài khoản nhận chuyển khoản (VietQR)</h3>
+            </div>
+            <p className="mb-4 text-sm text-gray-500">
+              Điền để hiện mã QR chuyển khoản khi thanh toán và trên hóa đơn in ra.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Ngân hàng
+                </label>
+                <select
+                  value={bankBin}
+                  onChange={(e) => setBankBin(e.target.value)}
+                  className="w-full rounded-lg border px-4 py-2"
+                >
+                  <option value="">-- Chọn ngân hàng --</option>
+                  {VIETQR_BANKS.map((bank) => (
+                    <option key={bank.bin} value={bank.bin}>
+                      {bank.shortName} — {bank.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Số tài khoản
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumber}
+                  onChange={(e) => setBankAccountNumber(e.target.value.replace(/\s/g, ''))}
+                  placeholder="VD: 0123456789"
+                  className="w-full rounded-lg border px-4 py-2"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Tên chủ tài khoản
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountName}
+                  onChange={(e) => setBankAccountName(e.target.value)}
+                  placeholder="VD: NGUYEN THI LAN"
+                  className="w-full rounded-lg border px-4 py-2"
+                />
+              </div>
+            </div>
+            <div className="mt-4 border-t pt-4">
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Máy chủ OCR quét ảnh sản phẩm (iOS OCR Server)
+              </label>
+              <input
+                type="text"
+                value={ocrServerUrl}
+                onChange={(e) => setOcrServerUrl(e.target.value)}
+                placeholder="VD: http://192.168.1.50:8000"
+                className="w-full rounded-lg border px-4 py-2"
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Địa chỉ hiện trên app OCR Server chạy trên iPhone (cùng mạng LAN/Tailscale).
+                Dùng cho tính năng &quot;Quét từ ảnh&quot; ở trang Sản phẩm.
+                Để trống sẽ dùng biến môi trường OCR_SERVER_URL trong .env.
+              </p>
+            </div>
+            <p className="mt-3 text-xs text-gray-400">
+              Lưu bằng nút &quot;Lưu thay đổi&quot; ở mục Thông tin cửa hàng phía trên.
+            </p>
           </div>
 
           <div className="rounded-xl bg-white p-6 shadow-sm">

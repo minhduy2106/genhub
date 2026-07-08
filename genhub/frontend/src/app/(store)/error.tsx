@@ -24,7 +24,7 @@ export default function StoreError({
         </p>
         <button
           onClick={() => reset()}
-          className="bg-[#FF6B35] text-white px-6 py-2 rounded-lg hover:bg-[#E55A2B] transition-colors"
+          className="bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 px-6 py-2 rounded-lg hover:from-[#F0561D] hover:to-[#FF813A] transition-colors"
         >
           Thử lại
         </button>

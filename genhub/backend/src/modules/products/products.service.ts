@@ -8,6 +8,11 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { createSlug } from '../../common/utils/slug.util';
 import { paginate } from '../../common/dto/pagination.dto';
+import {
+  extractProductCandidates,
+  groupBoxesIntoLines,
+  type OcrBox,
+} from './ocr-parse.util';
 import { Prisma } from '@prisma/client';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
@@ -355,5 +360,83 @@ export class ProductsService {
     });
 
     return image;
+  }
+
+  async ocrScan(
+    storeId: string,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    this.ensureImageFile(file);
+
+    const store = await this.prisma.store.findUnique({
+      where: { id: storeId },
+      select: { settings: true },
+    });
+    const settings = (store?.settings ?? {}) as { ocrServerUrl?: string };
+    // Ưu tiên cấu hình trong Cài đặt cửa hàng, fallback về biến môi trường
+    const ocrServerUrl = (settings.ocrServerUrl?.trim() || process.env.OCR_SERVER_URL?.trim() || '')
+      .replace(/\/+$/, '');
+    if (!ocrServerUrl) {
+      throw new BadRequestException(
+        'Chưa cấu hình máy chủ OCR. Điền vào Cài đặt → Máy chủ OCR hoặc đặt biến môi trường OCR_SERVER_URL (VD: http://192.168.1.50:8000)',
+      );
+    }
+
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }),
+      file.originalname || 'scan.jpg',
+    );
+
+    let res: Response;
+    try {
+      res = await fetch(`${ocrServerUrl}/upload`, {
+        method: 'POST',
+        body: form,
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new BadRequestException(
+        'Không kết nối được máy chủ OCR. Kiểm tra iPhone đang mở app OCR Server và cùng mạng với máy chủ.',
+      );
+    }
+    if (!res.ok) {
+      throw new BadRequestException(`Máy chủ OCR trả lỗi HTTP ${res.status}`);
+    }
+
+    const json = (await res.json()) as {
+      success?: boolean;
+      message?: string;
+      ocr_result?: string;
+      ocr_boxes?: OcrBox[];
+    };
+    if (!json?.success) {
+      throw new BadRequestException(json?.message || 'Máy chủ OCR xử lý ảnh thất bại');
+    }
+
+    // Có server OCR chỉ trả ocr_result (text) mà không kèm ocr_boxes
+    // → fallback tách text thô thành dòng để vẫn có ứng viên sản phẩm
+    let lines = groupBoxesIntoLines(json.ocr_boxes ?? []);
+    if (lines.length === 0 && json.ocr_result?.trim()) {
+      lines = json.ocr_result
+        .split(/\r?\n/)
+        .map((text) => text.trim())
+        .filter(Boolean)
+        .map((text, i) => ({ text, y: i, h: 1 }));
+    }
+    const candidates = extractProductCandidates(lines);
+
+    return {
+      rawText: json.ocr_result ?? '',
+      lines: lines.map((line) => line.text),
+      candidates,
+    };
   }
 }

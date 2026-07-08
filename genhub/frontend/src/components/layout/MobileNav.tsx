@@ -56,7 +56,7 @@ export function MobileNav() {
   const visibleTabs = tabs.filter((tab) => tab.visible(user)).slice(0, 5);
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t z-50">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-gray-200/80 z-50 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
       <div className="flex items-center justify-around h-14">
         {visibleTabs.map((tab) => {
           const active = pathname === tab.href;
@@ -64,11 +64,17 @@ export function MobileNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-col items-center gap-0.5 text-xs ${
-                active ? 'text-[#FF6B35]' : 'text-gray-500'
+              className={`flex flex-col items-center gap-0.5 text-[11px] transition-colors ${
+                active ? 'text-[#FF6B35] font-semibold' : 'text-gray-500'
               }`}
             >
-              <tab.icon className="h-5 w-5" />
+              <span
+                className={`flex items-center justify-center rounded-full px-3.5 py-0.5 transition-colors ${
+                  active ? 'bg-[#FF6B35]/10' : ''
+                }`}
+              >
+                <tab.icon className="h-5 w-5" />
+              </span>
               <span>{tab.label}</span>
             </Link>
           );

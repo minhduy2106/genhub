@@ -82,13 +82,15 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F7F8FA] p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#FFF4EE] via-[#F7F8FA] to-[#FFE8DB] p-4">
+      <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-[#FF6B35]/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-[#FF9046]/20 blur-3xl" />
+      <div className="relative w-full max-w-md bg-white/90 backdrop-blur-sm rounded-3xl shadow-xl shadow-orange-500/10 border border-white p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <Store className="h-8 w-8 text-[#FF6B35]" />
-            <span className="text-2xl font-bold text-[#FF6B35]">GenHub</span>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF6B35] to-[#FF9046] shadow-lg shadow-orange-500/30">
+            <Store className="h-7 w-7 text-white" />
           </div>
+          <span className="block text-2xl font-bold bg-gradient-to-r from-[#FF6B35] to-[#FF9046] bg-clip-text text-transparent">TinHub</span>
           <h1 className="text-xl font-bold">Đăng ký tài khoản</h1>
           <p className="text-sm text-gray-500 mt-1">Tạo cửa hàng của bạn miễn phí</p>
         </div>
@@ -173,7 +175,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#FF6B35] text-white rounded-lg font-semibold hover:bg-[#E55A2B] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-lg font-semibold hover:from-[#F0561D] hover:to-[#FF813A] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {loading ? 'Đang đăng ký...' : 'Đăng ký'}
