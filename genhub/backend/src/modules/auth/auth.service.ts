@@ -9,6 +9,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
+import nodemailer from 'nodemailer';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../../redis/redis.service';
@@ -168,6 +169,9 @@ const STAFF_PERMISSION_SLUGS = [
 const ACCESS_TOKEN_TTL = '15m';
 const REFRESH_TOKEN_TTL = '30d';
 const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+const OTP_TTL_SECONDS = 15 * 60;
+const OTP_RATE_LIMIT_TTL_SECONDS = 15 * 60;
+const OTP_RATE_LIMIT_MAX = 5;
 
 @Injectable()
 export class AuthService {
@@ -178,10 +182,16 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.findFirst({
-      where: { email: dto.email, deletedAt: null },
+      where: { email: normalizedEmail, deletedAt: null },
     });
     if (existing) throw new ConflictException('Email đã được sử dụng');
+
+    await this.verifyRegistrationCode(
+      normalizedEmail,
+      dto.verificationCode.trim(),
+    );
 
     const slug = createSlug(dto.storeName) + '-' + Date.now();
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -205,7 +215,7 @@ export class AuthService {
         data: {
           storeId: store.id,
           roleId: ownerRole.id,
-          email: dto.email,
+          email: normalizedEmail,
           phone: dto.phone,
           passwordHash,
           fullName: dto.fullName,
@@ -225,6 +235,8 @@ export class AuthService {
       dto.fullName,
     );
     await this.persistRefreshToken(result.user.id, tokens.refreshToken);
+    await this.redis.del(this.getRegistrationVerificationKey(normalizedEmail));
+    await this.redis.del(`register_verify:attempts:${normalizedEmail}`);
 
     return {
       ...tokens,
@@ -244,8 +256,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const normalizedEmail = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, deletedAt: null, isActive: true },
+      where: { email: normalizedEmail, deletedAt: null, isActive: true },
       include: {
         role: { include: { permissions: { include: { permission: true } } } },
         store: true,
@@ -317,9 +330,46 @@ export class AuthService {
     };
   }
 
+  async sendRegisterVerificationCode(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existing = await this.prisma.user.findFirst({
+      where: { email: normalizedEmail, deletedAt: null },
+    });
+    if (existing) throw new ConflictException('Email đã được sử dụng');
+
+    const rateLimitKey = `register_verify:attempts:${normalizedEmail}`;
+    const attempts = await this.redis.get(rateLimitKey);
+    if (attempts && parseInt(attempts) >= OTP_RATE_LIMIT_MAX) {
+      throw new BadRequestException(
+        'Quá nhiều yêu cầu. Vui lòng thử lại sau 15 phút',
+      );
+    }
+
+    const currentAttempts = attempts ? parseInt(attempts) + 1 : 1;
+    await this.redis.set(
+      rateLimitKey,
+      currentAttempts.toString(),
+      OTP_RATE_LIMIT_TTL_SECONDS,
+    );
+
+    const code = this.generateOtpCode();
+    await this.redis.set(
+      this.getRegistrationVerificationKey(normalizedEmail),
+      code,
+      OTP_TTL_SECONDS,
+    );
+
+    await this.sendRegistrationVerificationEmail(normalizedEmail, code);
+
+    return { message: 'Mã xác nhận đã được gửi đến email của bạn' };
+  }
+
   async forgotPassword(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Rate limit: max 5 OTP requests per email per 15 minutes
-    const rateLimitKey = `otp:attempts:${email}`;
+    const rateLimitKey = `otp:attempts:${normalizedEmail}`;
     const attempts = await this.redis.get(rateLimitKey);
     if (attempts && parseInt(attempts) >= 5) {
       throw new BadRequestException(
@@ -328,7 +378,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findFirst({
-      where: { email, deletedAt: null, isActive: true },
+      where: { email: normalizedEmail, deletedAt: null, isActive: true },
     });
 
     // Always return success to prevent email enumeration
@@ -338,25 +388,162 @@ export class AuthService {
 
     // Increment attempt counter
     const currentAttempts = attempts ? parseInt(attempts) + 1 : 1;
-    await this.redis.set(rateLimitKey, currentAttempts.toString(), 15 * 60);
+    await this.redis.set(
+      rateLimitKey,
+      currentAttempts.toString(),
+      OTP_RATE_LIMIT_TTL_SECONDS,
+    );
 
     // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = this.generateOtpCode();
 
     // Store in Redis with 15 minute expiry
-    const redisKey = `password_reset:${email}`;
-    await this.redis.set(redisKey, code, 15 * 60);
+    const redisKey = `password_reset:${normalizedEmail}`;
+    await this.redis.set(redisKey, code, OTP_TTL_SECONDS);
 
-    // In production, send email here. For now, log to console (dev only).
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[Forgot Password] OTP for ${email}: ${code}`);
-    }
+    await this.sendPasswordResetEmail(normalizedEmail, code);
 
     return { message: 'Mã xác nhận đã được gửi đến email của bạn' };
   }
 
+  private generateOtpCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  private getRegistrationVerificationKey(email: string) {
+    return `register_verify:${email}`;
+  }
+
+  private async verifyRegistrationCode(email: string, code: string) {
+    const storedCode = await this.redis.get(
+      this.getRegistrationVerificationKey(email),
+    );
+
+    if (!storedCode || storedCode !== code) {
+      throw new BadRequestException(
+        'Mã xác nhận email không hợp lệ hoặc đã hết hạn',
+      );
+    }
+  }
+
+  private getSmtpConfig() {
+    const host = process.env.SMTP_HOST?.trim();
+    const from = process.env.SMTP_FROM?.trim();
+    if (!host || !from) return null;
+
+    const port = Number.parseInt(process.env.SMTP_PORT ?? '587', 10);
+    if (!Number.isFinite(port) || port <= 0) {
+      throw new BadRequestException('SMTP_PORT không hợp lệ');
+    }
+
+    const secureEnv = process.env.SMTP_SECURE?.trim().toLowerCase();
+    const secure = secureEnv ? secureEnv === 'true' : port === 465;
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS;
+
+    return {
+      host,
+      port,
+      secure,
+      from,
+      auth: user && pass ? { user, pass } : undefined,
+    };
+  }
+
+  private async sendRegistrationVerificationEmail(email: string, code: string) {
+    const smtp = this.getSmtpConfig();
+
+    if (!smtp) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Register] Verification OTP for ' + email + ': ' + code);
+        return;
+      }
+
+      throw new BadRequestException(
+        'Chưa cấu hình SMTP để gửi mã xác nhận email',
+      );
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
+        ...(smtp.auth && { auth: smtp.auth }),
+      });
+
+      await transporter.sendMail({
+        from: smtp.from,
+        to: email,
+        subject: 'Mã xác nhận email GenHub',
+        text:
+          'Mã xác nhận email đăng ký GenHub của bạn là: ' +
+          code +
+          '. Mã có hiệu lực trong 15 phút.',
+        html:
+          '<p>Mã xác nhận email đăng ký GenHub của bạn là:</p>' +
+          '<p><strong style="font-size:24px;letter-spacing:4px">' +
+          code +
+          '</strong></p>' +
+          '<p>Mã có hiệu lực trong 15 phút.</p>',
+      });
+    } catch (error) {
+      console.error('Failed to send registration verification email:', error);
+      throw new BadRequestException(
+        'Không gửi được mã xác nhận. Vui lòng thử lại sau',
+      );
+    }
+  }
+
+  private async sendPasswordResetEmail(email: string, code: string) {
+    const smtp = this.getSmtpConfig();
+
+    if (!smtp) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[Forgot Password] OTP for ' + email + ': ' + code);
+        return;
+      }
+
+      throw new BadRequestException(
+        'Chưa cấu hình SMTP để gửi mã đặt lại mật khẩu',
+      );
+    }
+
+    try {
+      const transporter = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
+        ...(smtp.auth && { auth: smtp.auth }),
+      });
+
+      await transporter.sendMail({
+        from: smtp.from,
+        to: email,
+        subject: 'Mã đặt lại mật khẩu GenHub',
+        text:
+          'Mã xác nhận đặt lại mật khẩu của bạn là: ' +
+          code +
+          '. Mã có hiệu lực trong 15 phút.',
+        html:
+          '<p>Mã xác nhận đặt lại mật khẩu của bạn là:</p>' +
+          '<p><strong style="font-size:24px;letter-spacing:4px">' +
+          code +
+          '</strong></p>' +
+          '<p>Mã có hiệu lực trong 15 phút.</p>',
+      });
+    } catch (error) {
+      console.error('Failed to send password reset email:', error);
+      throw new BadRequestException(
+        'Không gửi được mã xác nhận. Vui lòng thử lại sau',
+      );
+    }
+  }
+
   async resetPassword(email: string, code: string, newPassword: string) {
-    const redisKey = `password_reset:${email}`;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const redisKey = `password_reset:${normalizedEmail}`;
     const storedCode = await this.redis.get(redisKey);
 
     if (!storedCode || storedCode !== code) {
@@ -364,7 +551,7 @@ export class AuthService {
     }
 
     const user = await this.prisma.user.findFirst({
-      where: { email, deletedAt: null, isActive: true },
+      where: { email: normalizedEmail, deletedAt: null, isActive: true },
     });
 
     if (!user) {
@@ -504,13 +691,12 @@ export class AuthService {
 
     const existingEmail = await this.prisma.user.findFirst({
       where: {
-        storeId: user.storeId,
         email: normalizedEmail,
         deletedAt: null,
       },
     });
     if (existingEmail) {
-      throw new ConflictException('Email nhân viên đã tồn tại trong cửa hàng');
+      throw new ConflictException('Email đã được sử dụng bởi tài khoản khác');
     }
 
     if (normalizedPhone) {

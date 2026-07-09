@@ -3,36 +3,32 @@ set -e
 
 echo "Waiting for PostgreSQL..."
 until node -e "
-const net = require('net');
-const [host, port] = (process.env.DATABASE_URL || '').match(/@([^:]+):(\d+)/)?.[0]?.replace('@','').split(':') || ['postgres','5432'];
-const s = net.createConnection(parseInt(port), host);
-s.on('connect', () => { s.destroy(); process.exit(0); });
-s.on('error', () => { process.exit(1); });
+const net = require(\"net\");
+let host = \"postgres\";
+let port = \"5432\";
+try {
+  const url = new URL(process.env.DATABASE_URL || \"postgresql://genhub:genhub_secret@postgres:5432/genhub\");
+  host = url.hostname || host;
+  port = url.port || port;
+} catch {}
+const s = net.createConnection(Number(port), host);
+s.on(\"connect\", () => { s.destroy(); process.exit(0); });
+s.on(\"error\", () => { process.exit(1); });
 " 2>/dev/null; do
   echo "  PostgreSQL not ready, retrying in 2s..."
   sleep 2
 done
 echo "PostgreSQL is ready!"
 
-echo "Pushing database schema..."
-npx prisma db push 2>&1
-echo "Schema push complete."
+echo "Running database migrations..."
+npx prisma migrate deploy 2>&1
+echo "Database migrations complete."
 
-echo "Running seed (if needed)..."
-# Check if store table has data, if not run seed
-HAS_DATA=$(node -e "
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
-prisma.store.count().then(c => { console.log(c); prisma.\$disconnect(); }).catch(() => { console.log(0); prisma.\$disconnect(); });
-" 2>/dev/null)
-
-if [ "$HAS_DATA" = "0" ] || [ -z "$HAS_DATA" ]; then
-  echo "  Database is empty, seeding..."
-  node dist/prisma/seed.js 2>&1 || echo "  Seed failed, continuing..."
+if [ "${ENABLE_DEMO_SEED:-false}" = "true" ]; then
+  echo "ENABLE_DEMO_SEED=true, running demo seed..."
+  node dist/prisma/seed.js 2>&1
 else
-  echo "  Database already has data, skipping seed."
+  echo "Skipping demo seed. Use ENABLE_DEMO_SEED=true only for disposable demos."
 fi
 
 echo "Starting GenHub API..."

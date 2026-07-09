@@ -1,7 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Search, Loader2, X, ScanText, Camera, Trash2 } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Loader2,
+  X,
+  ScanText,
+  Camera,
+  Trash2,
+  Tags,
+  Pencil,
+  Check,
+} from 'lucide-react';
 import { apiFetch, resolveAssetUrl } from '@/lib/api';
 import { useAuthStore } from '@/lib/stores/auth.store';
 import { hasPermission } from '@/lib/permissions';
@@ -13,6 +24,9 @@ interface Category {
   id: string;
   name: string;
   slug: string;
+  sortOrder?: number;
+  children?: Category[];
+  _count?: { products: number };
 }
 
 interface Product {
@@ -107,6 +121,13 @@ async function ocrScanImage(file: File): Promise<OcrScanResult> {
 function getStock(product: Product): number {
   if (!product.inventory?.length) return 0;
   return product.inventory.reduce((sum, inv) => sum + inv.quantity, 0);
+}
+
+function flattenCategories(categories: Category[]): Category[] {
+  return categories.flatMap((category) => [
+    category,
+    ...flattenCategories(category.children ?? []),
+  ]);
 }
 
 /* ---------- Add Product Modal ---------- */
@@ -1143,6 +1164,222 @@ function EditProductModal({
   );
 }
 
+
+interface CategoryManagerProps {
+  categories: Category[];
+  canManage: boolean;
+  onChanged: () => void;
+}
+
+function CategoryManager({ categories, canManage, onChanged }: CategoryManagerProps) {
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const flatCategories = flattenCategories(categories);
+
+  const handleCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const name = newName.trim();
+    if (!name) {
+      toast.error('Nhập tên danh mục');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await apiFetch('/categories', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          sortOrder: flatCategories.length + 1,
+        }),
+      });
+      setNewName('');
+      toast.success('Đã thêm danh mục');
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể thêm danh mục');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const startEdit = (category: Category) => {
+    setEditingId(category.id);
+    setEditingName(category.name);
+  };
+
+  const handleUpdate = async (categoryId: string) => {
+    const name = editingName.trim();
+    if (!name) {
+      toast.error('Tên danh mục không được để trống');
+      return;
+    }
+
+    setBusyId(categoryId);
+    try {
+      await apiFetch(`/categories/${categoryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
+      setEditingId(null);
+      setEditingName('');
+      toast.success('Đã cập nhật danh mục');
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể cập nhật danh mục');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (category: Category) => {
+    const productCount = category._count?.products ?? 0;
+    const message = productCount > 0
+      ? `Xóa danh mục "${category.name}"? ${productCount} sản phẩm đang dùng danh mục này sẽ được bỏ danh mục.`
+      : `Xóa danh mục "${category.name}"?`;
+
+    if (!window.confirm(message)) return;
+
+    setBusyId(category.id);
+    try {
+      await apiFetch(`/categories/${category.id}`, { method: 'DELETE' });
+      toast.success('Đã xóa danh mục');
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Không thể xóa danh mục');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-[#FF6B35]">
+            <Tags className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900">Danh mục sản phẩm</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Nội thất, gas, bỉm sữa, trái cây hoặc nhóm hàng riêng của cửa hàng.
+            </p>
+          </div>
+        </div>
+
+        {canManage && (
+          <form onSubmit={handleCreate} className="flex w-full gap-2 lg:w-96">
+            <input
+              type="text"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              placeholder="Tên danh mục mới"
+              className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/50"
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-[#FF6B35] px-3 py-2 text-sm font-medium text-white hover:bg-[#F0561D] disabled:opacity-60"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Thêm
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {flatCategories.length === 0 ? (
+          <span className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+            Chưa có danh mục
+          </span>
+        ) : (
+          flatCategories.map((category) => {
+            const isEditing = editingId === category.id;
+            const isBusy = busyId === category.id;
+
+            return (
+              <div
+                key={category.id}
+                className="flex max-w-full items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
+              >
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(event) => setEditingName(event.target.value)}
+                    className="w-44 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/50"
+                    autoFocus
+                  />
+                ) : (
+                  <span className="max-w-[13rem] truncate font-medium text-gray-700">
+                    {category.name}
+                  </span>
+                )}
+
+                <span className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-500">
+                  {category._count?.products ?? 0}
+                </span>
+
+                {canManage && (
+                  <div className="flex items-center gap-1">
+                    {isEditing ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdate(category.id)}
+                          disabled={isBusy}
+                          className="rounded-full p-1 text-green-600 hover:bg-green-50 disabled:opacity-50"
+                          title="Lưu danh mục"
+                        >
+                          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingId(null); setEditingName(''); }}
+                          disabled={isBusy}
+                          className="rounded-full p-1 text-gray-500 hover:bg-white disabled:opacity-50"
+                          title="Hủy"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(category)}
+                          disabled={isBusy}
+                          className="rounded-full p-1 text-gray-500 hover:bg-white disabled:opacity-50"
+                          title="Sửa danh mục"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(category)}
+                          disabled={isBusy}
+                          className="rounded-full p-1 text-gray-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                          title="Xóa danh mục"
+                        >
+                          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Main Page ---------- */
 export default function ProductsPage() {
   const user = useAuthStore((state) => state.user);
@@ -1156,6 +1393,7 @@ export default function ProductsPage() {
   const canCreateProducts = hasPermission(user, 'products:create');
   const canUpdateProducts = hasPermission(user, 'products:update');
   const canDeleteProducts = hasPermission(user, 'products:delete');
+  const canManageCategories = canCreateProducts || canUpdateProducts || canDeleteProducts;
 
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1178,16 +1416,30 @@ export default function ProductsPage() {
   }, []);
 
   /* ---------- Fetch categories ---------- */
-  useEffect(() => {
-    apiFetch<Category[]>('/categories')
-      .then((res) => setCategories(Array.isArray(res) ? res : []))
-      .catch(() => {});
+  const fetchCategories = useCallback(async () => {
+    try {
+      const res = await apiFetch<Category[]>('/categories');
+      setCategories(Array.isArray(res) ? res : []);
+    } catch {
+      setCategories([]);
+    }
   }, []);
+
+  useEffect(() => {
+    void fetchCategories();
+  }, [fetchCategories]);
 
   /* ---------- Initial product load ---------- */
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  const handleCategoriesChanged = useCallback(() => {
+    void fetchCategories();
+    void fetchProducts(search);
+  }, [fetchCategories, fetchProducts, search]);
+
+  const categoryOptions = flattenCategories(categories);
 
   /* ---------- Debounced search ---------- */
   useEffect(() => {
@@ -1245,6 +1497,12 @@ export default function ProductsPage() {
           className="w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-[#FF6B35]/50 focus:outline-none"
         />
       </div>
+
+      <CategoryManager
+        categories={categories}
+        canManage={canManageCategories}
+        onChanged={handleCategoriesChanged}
+      />
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1349,7 +1607,7 @@ export default function ProductsPage() {
       {/* Add Product Modal */}
       {showAddModal && (
         <AddProductModal
-          categories={categories}
+          categories={categoryOptions}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => fetchProducts(search)}
         />
@@ -1365,7 +1623,7 @@ export default function ProductsPage() {
       {selectedProduct && canUpdateProducts && (
         <EditProductModal
           product={selectedProduct}
-          categories={categories}
+          categories={categoryOptions}
           canDelete={canDeleteProducts}
           onClose={() => setSelectedProduct(null)}
           onSuccess={() => fetchProducts(search)}

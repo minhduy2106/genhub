@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { SendRegisterVerificationDto } from './dto/send-register-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -49,6 +50,12 @@ function setRefreshCookie(res: Response, token: string) {
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
+
+  @Public()
+  @Post('register/send-code')
+  sendRegisterVerificationCode(@Body() dto: SendRegisterVerificationDto) {
+    return this.authService.sendRegisterVerificationCode(dto.email);
+  }
 
   @Public()
   @Post('register')

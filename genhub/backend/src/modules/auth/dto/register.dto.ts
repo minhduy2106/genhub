@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Length,
   Matches,
   MinLength,
 } from 'class-validator';
@@ -14,6 +15,11 @@ export class RegisterDto {
 
   @IsEmail({}, { message: 'Email không hợp lệ' })
   email: string;
+
+  @IsString()
+  @Length(6, 6, { message: 'Mã xác nhận phải gồm 6 chữ số' })
+  @Matches(/^\d{6}$/, { message: 'Mã xác nhận phải gồm 6 chữ số' })
+  verificationCode: string;
 
   @IsString()
   @MinLength(6, { message: 'Mật khẩu tối thiểu 6 ký tự' })

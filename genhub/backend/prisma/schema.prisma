@@ -93,7 +93,7 @@ model User {
   id           String    @id @default(uuid())
   storeId      String
   roleId       String
-  email        String?   @db.VarChar(255)
+  email        String?   @unique @db.VarChar(255)
   phone        String?   @db.VarChar(20)
   passwordHash String?   @db.VarChar(255)
   pinHash      String?   @db.VarChar(255)

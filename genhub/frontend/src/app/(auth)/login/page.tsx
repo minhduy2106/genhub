@@ -4,9 +4,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Store, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/stores/auth.store';
+import { API_URL } from '@/lib/api';
 import { toast } from 'sonner';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 export default function LoginPage() {
   const router = useRouter();

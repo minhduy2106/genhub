@@ -17,7 +17,7 @@ RUN npx prisma generate
 FROM prisma AS build
 COPY . .
 RUN npm run build
-# Compile seed to JS for production use
+# Compile optional demo seed to JS
 RUN npx tsc --project prisma/tsconfig.seed.json || true
 
 # Production
