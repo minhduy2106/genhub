@@ -1,7 +1,11 @@
 'use client';
 
+import { useState } from 'react';
+import { Printer, Share2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { bankShortName, type BankSettings } from '@/lib/utils/vietqr';
 import { generateVietQRDataUrl, useVietQRDataUrl } from '@/lib/utils/use-vietqr';
+import { renderReceiptToBlob } from '@/lib/utils/receipt-image';
 
 export interface ReceiptItem {
   name: string;
@@ -175,6 +179,7 @@ interface ReceiptProps {
 
 export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
   const storeName = data.storeName ?? 'TINHUB POS';
+  const [exporting, setExporting] = useState(false);
   const bankAmount = transferAmount(data);
   const qrParams =
     data.bank && bankAmount > 0
@@ -186,6 +191,48 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
         }
       : null;
   const qrDataUrl = useVietQRDataUrl(qrParams);
+
+  // Xuất hóa đơn thành ảnh: chia sẻ thẳng (Zalo/Messenger) trên điện thoại,
+  // hoặc tải file trên máy tính. Ổn định hơn window.print() trên mobile.
+  const handleShareImage = async () => {
+    setExporting(true);
+    try {
+      const printQr =
+        qrDataUrl ?? (qrParams ? await generateVietQRDataUrl(qrParams) : null);
+      const blob = await renderReceiptToBlob(data, printQr);
+      const file = new File([blob], `hoa-don-${data.orderCode}.png`, {
+        type: 'image/png',
+      });
+
+      const canShareFile =
+        typeof navigator !== 'undefined' &&
+        !!navigator.canShare &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFile) {
+        await navigator.share({
+          files: [file],
+          title: `Hóa đơn ${data.orderCode}`,
+          text: `Hóa đơn ${data.orderCode} - ${storeName}`,
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Đã lưu ảnh hóa đơn vào máy');
+      }
+    } catch (err) {
+      // Người dùng bấm hủy hộp chia sẻ → không phải lỗi
+      if ((err as Error)?.name !== 'AbortError') {
+        toast.error('Không tạo được ảnh hóa đơn. Vui lòng thử lại.');
+      }
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handlePrint = async () => {
     // Bấm In trước khi hook kịp render QR → tạo QR ngay để bản in không thiếu mã
@@ -336,19 +383,34 @@ export default function Receipt({ data, onNewOrder, onClose }: ReceiptProps) {
         </div>
 
         {/* Action buttons */}
-        <div className="p-4 border-t flex gap-2">
+        <div className="p-4 border-t space-y-2">
           <button
-            onClick={handlePrint}
-            className="flex-1 py-2.5 border border-[#FF6B35] text-[#FF6B35] rounded-xl font-medium hover:bg-orange-50 transition-colors text-sm"
+            onClick={handleShareImage}
+            disabled={exporting}
+            className="w-full py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-xl font-medium hover:from-[#F0561D] hover:to-[#FF813A] transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            In hóa đơn
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+            {exporting ? 'Đang tạo ảnh...' : 'Gửi / Lưu hóa đơn'}
           </button>
-          <button
-            onClick={onNewOrder}
-            className="flex-1 py-2.5 bg-gradient-to-r from-[#FF6B35] to-[#FF9046] text-white shadow-md shadow-orange-500/25 rounded-xl font-medium hover:from-[#F0561D] hover:to-[#FF813A] transition-colors text-sm"
-          >
-            Đơn mới
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="flex-1 py-2.5 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              <Printer className="h-4 w-4" />
+              In
+            </button>
+            <button
+              onClick={onNewOrder}
+              className="flex-1 py-2.5 border border-[#FF6B35] text-[#FF6B35] rounded-xl font-medium hover:bg-orange-50 transition-colors text-sm"
+            >
+              Đơn mới
+            </button>
+          </div>
         </div>
       </div>
     </div>

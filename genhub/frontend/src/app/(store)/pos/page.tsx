@@ -574,7 +574,7 @@ export default function PosPage() {
                 >
                   <div className="aspect-square bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-300 overflow-hidden">
                     {getImage(product) ? (
-                      <img src={getImage(product)!} alt={product.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <img src={getImage(product)!} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                     ) : (
                       <ShoppingCart className="h-8 w-8" />
                     )}

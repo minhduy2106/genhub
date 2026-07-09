@@ -1550,6 +1550,8 @@ export default function ProductsPage() {
                               <img
                                 src={resolveAssetUrl(product.images[0].url) ?? undefined}
                                 alt={product.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="h-full w-full object-cover"
                               />
                             ) : (

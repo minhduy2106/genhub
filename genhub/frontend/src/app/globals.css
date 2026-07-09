@@ -152,6 +152,29 @@
   background: rgba(255, 107, 53, 0.45);
 }
 
+/* Mobile: input tối thiểu 16px để iOS không tự phóng to khi focus (đỡ giật/rối) */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Cuộn mượt, không kéo ngang lố trên điện thoại */
+html,
+body {
+  overscroll-behavior-y: contain;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Vùng chạm tối thiểu 44px cho nút trên mobile (chuẩn Apple HIG) */
+@media (max-width: 640px) {
+  button {
+    touch-action: manipulation;
+  }
+}
+
 /* Hiệu ứng xuất hiện nhẹ cho nội dung trang */
 @keyframes tinhub-fade-up {
   from {
