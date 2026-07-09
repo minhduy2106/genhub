@@ -5,10 +5,43 @@ import * as bcrypt from 'bcrypt';
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
+const demoCategories = [
+  { key: 'noiThat', name: 'Nội thất', slug: 'noi-that', sortOrder: 1 },
+  { key: 'gas', name: 'Gas', slug: 'gas', sortOrder: 2 },
+  { key: 'bimSua', name: 'Bỉm sữa', slug: 'bim-sua', sortOrder: 3 },
+  { key: 'traiCay', name: 'Trái cây', slug: 'trai-cay', sortOrder: 4 },
+] as const;
+
+type DemoCategoryKey = (typeof demoCategories)[number]['key'];
+
+const demoProducts: Array<{
+  name: string;
+  sku: string;
+  price: number;
+  costPrice: number;
+  category: DemoCategoryKey;
+  unit: string;
+}> = [
+  { name: 'Bàn trà gỗ sồi', sku: 'NT-BT-001', price: 1350000, costPrice: 850000, category: 'noiThat', unit: 'cái' },
+  { name: 'Ghế ăn bọc nệm', sku: 'NT-GA-001', price: 690000, costPrice: 420000, category: 'noiThat', unit: 'cái' },
+  { name: 'Kệ giày 4 tầng', sku: 'NT-KG-001', price: 520000, costPrice: 310000, category: 'noiThat', unit: 'cái' },
+  { name: 'Đèn bàn decor', sku: 'NT-DB-001', price: 390000, costPrice: 220000, category: 'noiThat', unit: 'cái' },
+  { name: 'Bình gas 12kg', sku: 'GAS-12-001', price: 430000, costPrice: 380000, category: 'gas', unit: 'bình' },
+  { name: 'Bình gas mini', sku: 'GAS-MINI-001', price: 18000, costPrice: 13000, category: 'gas', unit: 'lon' },
+  { name: 'Van điều áp gas', sku: 'GAS-VA-001', price: 150000, costPrice: 90000, category: 'gas', unit: 'cái' },
+  { name: 'Sữa bột Grow 800g', sku: 'BS-SG-001', price: 360000, costPrice: 310000, category: 'bimSua', unit: 'hộp' },
+  { name: 'Bỉm size M 68 miếng', sku: 'BS-BM-001', price: 295000, costPrice: 245000, category: 'bimSua', unit: 'bịch' },
+  { name: 'Khăn ướt em bé', sku: 'BS-KU-001', price: 35000, costPrice: 22000, category: 'bimSua', unit: 'gói' },
+  { name: 'Táo Envy nhập khẩu', sku: 'TC-TAO-001', price: 95000, costPrice: 70000, category: 'traiCay', unit: 'kg' },
+  { name: 'Cam sành', sku: 'TC-CAM-001', price: 42000, costPrice: 28000, category: 'traiCay', unit: 'kg' },
+  { name: 'Chuối cau', sku: 'TC-CHUOI-001', price: 30000, costPrice: 18000, category: 'traiCay', unit: 'kg' },
+  { name: 'Nho xanh không hạt', sku: 'TC-NHO-001', price: 145000, costPrice: 105000, category: 'traiCay', unit: 'kg' },
+  { name: 'Xoài cát Hòa Lộc', sku: 'TC-XOAI-001', price: 85000, costPrice: 60000, category: 'traiCay', unit: 'kg' },
+];
+
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Roles
   const ownerRole = await prisma.role.create({
     data: { name: 'Chủ cửa hàng', slug: 'owner', isSystem: true },
   });
@@ -22,20 +55,18 @@ async function main() {
     data: { name: 'Nhân viên kho', slug: 'warehouse', isSystem: true },
   });
 
-  // Store
   const store = await prisma.store.create({
     data: {
-      name: 'Cửa hàng Thời Trang Lan',
-      slug: 'cua-hang-thoi-trang-lan',
+      name: 'Cửa hàng Demo GenHub',
+      slug: 'cua-hang-demo-genhub',
       phone: '0901234567',
-      email: 'lan@genhub.vn',
+      email: 'demo@genhub.vn',
       address: '123 Nguyễn Huệ, Quận 1',
       city: 'TP.HCM',
       settings: { low_stock_threshold: 5, receipt_footer: 'Cảm ơn quý khách!' },
     },
   });
 
-  // Users
   const hash = await bcrypt.hash('123456', 10);
   await prisma.user.create({
     data: { storeId: store.id, roleId: ownerRole.id, email: 'lan@genhub.vn', passwordHash: hash, fullName: 'Nguyễn Thị Lan', isOwner: true },
@@ -47,37 +78,34 @@ async function main() {
     data: { storeId: store.id, roleId: cashierRole.id, email: 'mai@genhub.vn', passwordHash: hash, fullName: 'Lê Thị Mai' },
   });
 
-  // Categories
-  const catAo = await prisma.category.create({ data: { storeId: store.id, name: 'Áo', slug: 'ao', sortOrder: 1 } });
-  const catQuan = await prisma.category.create({ data: { storeId: store.id, name: 'Quần', slug: 'quan', sortOrder: 2 } });
-  const catVay = await prisma.category.create({ data: { storeId: store.id, name: 'Váy', slug: 'vay', sortOrder: 3 } });
-  const catPK = await prisma.category.create({ data: { storeId: store.id, name: 'Phụ kiện', slug: 'phu-kien', sortOrder: 4 } });
+  const categoryIds = new Map<DemoCategoryKey, string>();
+  for (const category of demoCategories) {
+    const created = await prisma.category.create({
+      data: {
+        storeId: store.id,
+        name: category.name,
+        slug: category.slug,
+        sortOrder: category.sortOrder,
+      },
+    });
+    categoryIds.set(category.key, created.id);
+  }
 
-  // Products
-  const products = [
-    { name: 'Áo sơ mi trắng', sku: 'AO-SM-001', price: 250000, costPrice: 150000, cat: catAo.id, unit: 'cái' },
-    { name: 'Áo thun basic đen', sku: 'AO-TH-001', price: 180000, costPrice: 90000, cat: catAo.id, unit: 'cái' },
-    { name: 'Áo polo xanh navy', sku: 'AO-PL-001', price: 320000, costPrice: 180000, cat: catAo.id, unit: 'cái' },
-    { name: 'Áo khoác bomber', sku: 'AO-KB-001', price: 450000, costPrice: 250000, cat: catAo.id, unit: 'cái' },
-    { name: 'Quần jean slim fit', sku: 'QU-JE-001', price: 380000, costPrice: 200000, cat: catQuan.id, unit: 'cái' },
-    { name: 'Quần kaki nam', sku: 'QU-KA-001', price: 280000, costPrice: 150000, cat: catQuan.id, unit: 'cái' },
-    { name: 'Quần short thể thao', sku: 'QU-SH-001', price: 150000, costPrice: 80000, cat: catQuan.id, unit: 'cái' },
-    { name: 'Váy hoa nhí đỏ', sku: 'VA-HN-001', price: 350000, costPrice: 180000, cat: catVay.id, unit: 'cái' },
-    { name: 'Váy liền thân xanh', sku: 'VA-LT-001', price: 420000, costPrice: 220000, cat: catVay.id, unit: 'cái' },
-    { name: 'Chân váy chữ A', sku: 'VA-CA-001', price: 280000, costPrice: 140000, cat: catVay.id, unit: 'cái' },
-    { name: 'Túi xách nữ', sku: 'PK-TX-001', price: 520000, costPrice: 280000, cat: catPK.id, unit: 'cái' },
-    { name: 'Mũ lưỡi trai', sku: 'PK-ML-001', price: 120000, costPrice: 60000, cat: catPK.id, unit: 'cái' },
-    { name: 'Thắt lưng da', sku: 'PK-TL-001', price: 250000, costPrice: 120000, cat: catPK.id, unit: 'cái' },
-    { name: 'Kính mát thời trang', sku: 'PK-KM-001', price: 180000, costPrice: 80000, cat: catPK.id, unit: 'cái' },
-    { name: 'Khăn choàng cổ', sku: 'PK-KC-001', price: 150000, costPrice: 70000, cat: catPK.id, unit: 'cái' },
-  ];
+  for (const p of demoProducts) {
+    const categoryId = categoryIds.get(p.category);
+    if (!categoryId) throw new Error(`Missing category ${p.category}`);
 
-  for (const p of products) {
     const product = await prisma.product.create({
       data: {
-        storeId: store.id, categoryId: p.cat, name: p.name,
-        slug: p.sku.toLowerCase(), sku: p.sku, unit: p.unit,
-        price: p.price, costPrice: p.costPrice, status: 'active',
+        storeId: store.id,
+        categoryId,
+        name: p.name,
+        slug: p.sku.toLowerCase(),
+        sku: p.sku,
+        unit: p.unit,
+        price: p.price,
+        costPrice: p.costPrice,
+        status: 'active',
       },
     });
     await prisma.inventory.create({
@@ -85,7 +113,6 @@ async function main() {
     });
   }
 
-  // Customers
   const customers = [
     { fullName: 'Phạm Minh Tuấn', phone: '0912345001', code: 'KH-001' },
     { fullName: 'Nguyễn Thị Hoa', phone: '0912345002', code: 'KH-002' },
